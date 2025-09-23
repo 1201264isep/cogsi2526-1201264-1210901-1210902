@@ -21,12 +21,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.xml.bind.annotation.XmlElement;
 
 import org.springframework.beans.support.MutableSortDefinition;
@@ -48,6 +44,18 @@ public class Vet extends Person {
     @JoinTable(name = "vet_specialties", joinColumns = @JoinColumn(name = "vet_id"),
         inverseJoinColumns = @JoinColumn(name = "specialty_id"))
     private Set<Specialty> specialties;
+
+    @NotEmpty
+    @Column(name = "professional_license_number")
+    private int professionalLicenseNumber;
+
+    public int getProfessionalLicenseNumber() {
+        return professionalLicenseNumber;
+    }
+
+    public void setProfessionalLicenseNumber(int professionalLicenseNumber) {
+        this.professionalLicenseNumber = professionalLicenseNumber;
+    }
 
     protected Set<Specialty> getSpecialtiesInternal() {
         if (this.specialties == null) {
