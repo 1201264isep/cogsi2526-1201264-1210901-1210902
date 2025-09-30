@@ -49,6 +49,18 @@ public class Vet extends Person {
     @Column(name = "professional_license_number")
     private int professionalLicenseNumber;
 
+    @NotEmpty
+    @Column(name = "email")
+    private String email;
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
     public int getProfessionalLicenseNumber() {
         return professionalLicenseNumber;
     }

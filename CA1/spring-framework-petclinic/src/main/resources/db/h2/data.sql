@@ -1,9 +1,9 @@
-INSERT INTO vets VALUES (default, 'James', 'Carter', 1);
-INSERT INTO vets VALUES (default, 'Helen', 'Leary', 1);
-INSERT INTO vets VALUES (default, 'Linda', 'Douglas', 1);
-INSERT INTO vets VALUES (default, 'Rafael', 'Ortega', 1);
-INSERT INTO vets VALUES (default, 'Henry', 'Stevens', 1);
-INSERT INTO vets VALUES (default, 'Sharon', 'Jenkins', 1);
+INSERT INTO vets VALUES (default, 'James', 'Carter', 1, 'email@isep.ipp.pt');
+INSERT INTO vets VALUES (default, 'Helen', 'Leary', 1, 'email@isep.ipp.pt');
+INSERT INTO vets VALUES (default, 'Linda', 'Douglas', 1, 'email@isep.ipp.pt');
+INSERT INTO vets VALUES (default, 'Rafael', 'Ortega', 1, 'email@isep.ipp.pt');
+INSERT INTO vets VALUES (default, 'Henry', 'Stevens', 1, 'email@isep.ipp.pt');
+INSERT INTO vets VALUES (default, 'Sharon', 'Jenkins', 1, 'email@isep.ipp.pt');
 
 INSERT INTO specialties VALUES (default, 'radiology');
 INSERT INTO specialties VALUES (default, 'surgery');

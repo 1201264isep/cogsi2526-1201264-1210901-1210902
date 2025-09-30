@@ -41,11 +41,13 @@ class VetControllerTests {
         james.setLastName("Carter");
         james.setId(1);
         james.setProfessionalLicenseNumber(1);
+        james.setEmail("email@isep.ipp.pt");
         Vet helen = new Vet();
         helen.setFirstName("Helen");
         helen.setLastName("Leary");
         helen.setId(2);
         helen.setProfessionalLicenseNumber(1);
+        helen.setEmail("email@isep.ipp.pt");
         Specialty radiology = new Specialty();
         radiology.setId(1);
         radiology.setName("radiology");
