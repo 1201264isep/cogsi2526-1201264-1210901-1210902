@@ -17,3 +17,5 @@ out/
 *.war
 # Maven
 target/
+CA1/mercurial/
+CA1/mercurial-remote/

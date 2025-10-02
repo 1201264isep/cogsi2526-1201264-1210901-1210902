@@ -1,4 +1,5 @@
 
+
 # cogsi2526-1210901-1210902
 ## CA1
 ### Self-evaluation
@@ -60,7 +61,7 @@ ao mesmo tempo por vários membros.O SVN permite merging mas de forma mais simpl
 Em termo de branching o SVN funciona de forma que cada branch é uma cópia do diretório dentro do repositório enquanto no Git branches são apenas pointers para commits. 
 
 ### Implementação mercurial
-## Part 1
+## Parte 1
 - 1 - Criamos o diretório mercurial e copiamos o spring-framework-petclinic para o diretório.
 - 2 - Criamos um ficheiro hgignore para ignorar os build artefacts e usamos o hg config --edit para configurar um user
 - 3 - Fizemos um hg add . para dar track aos ficheiros e fizemos hg commit para criar o primeiro commit.
@@ -76,4 +77,18 @@ ficheiros diferentes que façam o mesmo efeito.
 - 9 - Utilizamos os comando hg log com a opção --graph.
 - 10 - Testamos fazer revert dum ficheiro para o estado do primeiro commit (hg revert -r 0 spring-framework-petclinic/src/main/java/org/springframework/samples/petclinic/model/Pet.java).
 - 11 - Vimos a diferença com hg diff  spring-framework-petclinic/src/main/java/org/springframework/samples/petclinic/model/Pet.java
-- 12 - Voltamos ao estado do ultimo commit com hg update -r 4
+- 12 - Voltamos ao estado do ultimo commit com hg update -r 4 e mostramos o branch com hg branch
+- 13 - Marcamos o ultimo commit usando hg tag ca1-part1 -r 4
+## Parte 2
+- 14 - Criamos uma branch email-field para a nova feature (hg branch email-field)
+- 15 - Fizemos alterações no ficheiro vet
+- 16 - Damos commit neste novo branch e fazemos hg update default para voltarmos para o branch default.
+- 17 - De seguida fazemos hg merge email-field para dar merge e damos commit no default branch
+- 18 - Adicionamos a tag v1.3.0 e damos push para o remoto
+- 19 - Criamos um branch com hg branch conflito e damos commit.(hg branch apenas aponta para o novo branch é preciso commit para ele ser criado)
+- 20 - Alteramos os ficheiros de configuração .hg/hgrc para usar o nano como editor default
+- 21 - Fizemos alterações  no ficheiro model/vets.java no branch default e demos commit
+- 22 - Trocamos de branch com o hg branch conflito e hg update conflito para ir buscar o branch E alteramos o mesmo ficheiro vets com informação em conflito
+- 23 - Fizemos commit neste branch conflito e trocamos para o default com hg update default e hg branch default 
+- 24 - Aqui fizemos hg merge conflito e ouve merge conflicts que foram resolvidos no editor.
+- 25 - Fizemos um commit do merge,adicionamos a tag e demos push para o remoto com hg push origin --new-branch visto que os branchs no mercurial são permanentes.
