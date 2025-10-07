@@ -69,3 +69,14 @@ task copy(type: Copy) {
         Files.createDirectories(Paths.get("./backup"))
     }
 }
+
+task zip(type: Zip) {
+    group = "Backup"
+    description = "Creates a ZIP of the backup folder"
+
+    dependsOn copy
+
+    from 'backup'
+    archiveFileName = 'backup.zip'
+    destinationDirectory = file("./")
+}
