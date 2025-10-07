@@ -1,3 +1,6 @@
+import java.nio.file.Files
+import java.nio.file.Paths
+
 plugins {
     // Apply the application plugin to add support for building a Java application
     id 'application'
@@ -55,4 +58,14 @@ task runClient(type:JavaExec, dependsOn: classes){
     mainClass = 'basic_demo.ChatClientApp'
 
     args 'localhost', '59001'
+}
+
+task copy(type: Copy) {
+    group = "Backup"
+    description = "Copies src to backup folder"
+    from 'src'
+    into 'backup'
+    doFirst {
+        Files.createDirectories(Paths.get("./backup"))
+    }
 }
