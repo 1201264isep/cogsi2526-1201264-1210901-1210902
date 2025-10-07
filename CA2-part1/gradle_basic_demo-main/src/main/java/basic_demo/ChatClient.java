@@ -70,6 +70,11 @@ public class ChatClient implements Runnable{
         });
     }
 
+    public int getServerPort() {
+        return serverPort;
+    }
+
+
     private String getName() {
         return JOptionPane.showInputDialog(
             frame,
