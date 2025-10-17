@@ -1,0 +1,20 @@
+<ivy-module version="2.0">
+    <info organisation="org.springframework.guides" module="payroll" status="integration"/>
+
+    <configurations>
+        <conf name="compile" description="Compile dependencies"/>
+        <conf name="runtime" extends="compile" description="Runtime dependencies"/>
+        <conf name="test" extends="runtime" description="Test dependencies"/>
+    </configurations>
+
+    <dependencies>
+
+        <dependency org="org.springframework.boot" name="spring-boot-starter-web" rev="3.3.3" conf="compile->default"/>
+        <dependency org="org.springframework.boot" name="spring-boot-starter-data-jpa" rev="3.3.3" conf="compile->default"/>
+        <dependency org="org.springframework.boot" name="spring-boot-starter-hateoas" rev="3.3.3" conf="compile->default"/>
+
+        <dependency org="com.h2database" name="h2" rev="2.2.224" conf="runtime->default"/>
+
+        <dependency org="org.springframework.boot" name="spring-boot-starter-test" rev="3.3.3" conf="test->default"/>
+    </dependencies>
+</ivy-module>

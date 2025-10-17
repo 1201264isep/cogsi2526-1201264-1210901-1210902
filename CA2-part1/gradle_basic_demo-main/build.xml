@@ -1,0 +1,90 @@
+<project name="ant-basic-demo" default="jar" basedir="." xmlns:ivy="antlib:org.apache.ivy.ant">
+
+    <property name="src.dir" location="src"/>
+    <property name="main.src.dir" location="${src.dir}/main/java"/>
+    <property name="test.src.dir" location="${src.dir}/test/java"/>
+
+    <property name="build.dir" location="build"/>
+    <property name="classes.dir" location="${build.dir}/classes"/>
+    <property name="lib.dir" location="lib"/>
+    <property name="jar.dir" location="${build.dir}/jar"/>
+    <property name="backup.dir" location="backup"/>
+    <property name="test.classes.dir" location="${build.dir}/test-classes"/>
+
+    <path id="test.classpath">
+        <pathelement location="${classes.dir}"/>
+        <pathelement location="${test.classes.dir}"/>
+        <fileset dir="${lib.dir}/default" includes="*.jar"/>
+        <fileset dir="${lib.dir}/test" includes="*.jar"/>
+    </path>
+
+    <property name="main-class" value="basic_demo.App"/>
+
+    <target name="clean" description="Clean up all build artifacts">
+        <delete dir="${build.dir}"/>
+        <delete dir="${lib.dir}"/>
+        <delete dir="${backup.dir}"/>
+        <delete file="backup.zip" failonerror="false"/>
+    </target>
+
+    <target name="resolve" description="Use Ivy to resolve and retrieve dependencies">
+        <ivy:retrieve pattern="${lib.dir}/[conf]/[artifact]-[revision](-[classifier]).[ext]" conf="default,test"/>
+    </target>
+
+    <target name="compile" depends="resolve" description="Compile the main Java source code">
+        <mkdir dir="${classes.dir}"/>
+        <javac srcdir="${main.src.dir}" destdir="${classes.dir}" includeantruntime="false">
+            <classpath>
+                <fileset dir="${lib.dir}/default" includes="*.jar"/>
+            </classpath>
+        </javac>
+    </target>
+
+    <target name="jar" depends="compile" description="Package the application into a JAR file">
+        <mkdir dir="${jar.dir}"/>
+        <jar destfile="${jar.dir}/${ant.project.name}.jar" basedir="${classes.dir}">
+            <manifest>
+                <attribute name="Main-Class" value="${main-class}"/>
+            </manifest>
+        </jar>
+    </target>
+
+
+    <target name="runServer" depends="compile" description="Run the server application">
+        <java classname="${main-class}" fork="true">
+            <classpath>
+                <pathelement location="${classes.dir}"/>
+                <fileset dir="${lib.dir}/default" includes="*.jar"/>
+            </classpath>
+            <arg value="8080"/>
+        </java>
+    </target>
+    <target name="test" depends="compile" description="Compile and run all unit tests">
+
+        <mkdir dir="${test.classes.dir}"/>
+        <javac srcdir="${test.src.dir}" destdir="${test.classes.dir}" includeantruntime="false">
+            <classpath refid="test.classpath"/>
+        </javac>
+
+        <junitlauncher haltonfailure="true">
+            <classpath refid="test.classpath"/>
+            <testclasses>
+                <fileset dir="${test.classes.dir}" includes="**/*Test.class"/>
+            </testclasses>
+            <listener type="legacy-plain" sendSysOut="true"/>
+        </junitlauncher>
+
+    </target>
+
+
+    <target name="Copy" description="Make a backup of the application sources">
+        <mkdir dir="${backup.dir}"/>
+        <copy todir="${backup.dir}">
+            <fileset dir="${src.dir}"/>
+        </copy>
+    </target>
+
+    <target name="zipBackup" depends="Copy" description="Create a zip archive of the backup">
+        <zip destfile="backup.zip" basedir="${backup.dir}"/>
+    </target>
+</project>
