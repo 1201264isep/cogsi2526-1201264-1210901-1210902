@@ -1,5 +1,6 @@
 
 
+
 # cogsi2526-1201264-1210901-1210902
 ## CA2 Part 1
 ### Self-evaluation
@@ -95,6 +96,6 @@ Gradle is more modern simplified approach focused on scripting that allows for m
 | **Factors**               | **Gradle**                                                                                                                      | **Ant**                                                                                         |
 |:--------------------------|:--------------------------------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------|
 | **Configuration**         | Groovy or Kotlin — relatibly concise and easier to understand.                                                                  | XML — very verbose,everything has to be typed                                                   |
-| **Dependency Management** | Built-in dependency resolution                                                                                                  | No native dependency management                                                                 |
+| **Dependency Management** | Built-in dependency resolution                                                                                                  | No native dependency management but Ivy is used                                                                |
 | **Tasks**                 | very flexible and easy to create custom tasks                                                                                   | More complext to configure                                                                      |
 | **Performance**           | Incremental builds and caching reduce work and speed up repeated builds.                                                        | No built-in incremental build/caching         |
