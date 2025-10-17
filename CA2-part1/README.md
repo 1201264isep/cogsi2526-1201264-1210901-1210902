@@ -99,3 +99,33 @@ Gradle is more modern simplified approach focused on scripting that allows for m
 | **Dependency Management** | Built-in dependency resolution                                                                                                  | No native dependency management but Ivy is used                                                                |
 | **Tasks**                 | very flexible and easy to create custom tasks                                                                                   | More complext to configure                                                                      |
 | **Performance**           | Incremental builds and caching reduce work and speed up repeated builds.                                                        | No built-in incremental build/caching         |
+
+## Implementation
+# Part 1
+To start we need to convert the gradle files to the equivalent files.Gradle has built in maven depency management and we in this version added
+Ivy to help with this.Our ivy.xml file:
+![img.png](img.png)
+
+We needed to manually define a build.xml file to compile the project and run the app.
+
+![img_2.png](img_2.png)
+
+Resolve downloads the dependencies specified in ivy.xml and puts them in the right lib destination.
+Compile takes the java files,converts them into jvm readable format(bytecode) and puts them in right folder.
+The run server runs the main class with the arguments required knowing where to find the needed files because of the classpath.
+
+*Running Tests*
+This task compiles the files in the test folder to bytecode then uses the junitlauncher to run tests finding them with the fileset task.
+
+![img_1.png](img_1.png)
+
+*Backing up code*
+Using the built it copy function to copy the files to a backup destination
+
+![img_3.png](img_3.png)
+
+*zipping the backup*
+Using the zip function to zip the backup and send it to the backup location
+
+![img_4.png](img_4.png)
+# Part 2

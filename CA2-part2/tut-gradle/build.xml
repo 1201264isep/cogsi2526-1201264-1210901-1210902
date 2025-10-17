@@ -12,6 +12,8 @@
     <property name="main-class" value="payroll.PayrollApplication"/>
 
     <property name="deploy.dir" location="${build.dir}/deployment/dev"/>
+    <property name="javadoc.dir" location="${build.dir}/javadoc"/>
+    <property name="dist.dir" location="${build.dir}/install/payroll"/>
 
     <path id="compile.classpath">
         <fileset dir="${lib.dir}/compile" includes="**/*.jar"/>
@@ -81,4 +83,61 @@
     <target name="jar" depends="compile">
         <jar destfile="${build.dir}/${ant.project.name}.jar" basedir="${classes.dir}"/>
     </target>
+
+
+
+    <target name="generate-javadoc" depends="compile" description="Generates Javadoc for the project">
+        <mkdir dir="${javadoc.dir}"/>
+
+        <javadoc destdir="${javadoc.dir}"
+                 sourcepath="${src.dir}"
+                 packagenames="payroll.*"
+                 author="true"
+                 private="true"
+                 windowtitle="Payroll API">
+            <classpath refid="compile.classpath"/>
+        </javadoc>
+    </target>
+
+
+    <target name="package-javadoc"
+            depends="generate-javadoc">
+
+        <zip destfile="${build.dir}/payroll-javadoc.zip"
+             basedir="${javadoc.dir}"/>
+    </target>
+    <target name="runFromDist" depends="installDist" description="Runs the app using the OS-specific distribution script">
+
+
+        <condition property="executable.command" value="bash" else="cmd">
+            <os family="unix"/>
+        </condition>
+
+
+        <condition property="executable.script" value="./run.sh" else="/c run.bat">
+            <os family="unix"/>
+        </condition>
+
+
+        <exec executable="${executable.command}" dir="${dist.dir}" failonerror="true">
+            <arg line="${executable.script}"/>
+        </exec>
+    </target>
+
+    <target name="installDist" depends="deployToDev" description="Assembles the application distribution">
+        <delete dir="${dist.dir}"/>
+        <mkdir dir="${dist.dir}"/>
+
+        <copy todir="${dist.dir}">
+            <fileset dir="${deploy.dir}"/>
+        </copy>
+
+        <copy todir="${dist.dir}">
+            <fileset dir="." includes="run.sh, run.bat"/>
+        </copy>
+    </target>
+
+
+
+
 </project>
