@@ -1,5 +1,5 @@
 #!/bin/bash
 
-CP="./build/install/payroll/payroll.jar:./build/install/payroll/lib/*"
+CP="./payroll.jar:./lib/*"
 
 java -cp "$CP" payroll.PayrollApplication

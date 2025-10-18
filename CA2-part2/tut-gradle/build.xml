@@ -76,17 +76,19 @@
         </copy>
         <copy file="${build.dir}/${ant.project.name}.jar" todir="${deploy.dir}"/>
     </target>
+
     <target name="clean-deploy" depends="jar" >
         <delete dir="${deploy.dir}"/>
         <mkdir dir="${deploy.dir}/lib"/>
     </target>
+
     <target name="jar" depends="compile">
         <jar destfile="${build.dir}/${ant.project.name}.jar" basedir="${classes.dir}"/>
     </target>
 
 
 
-    <target name="generate-javadoc" depends="compile" description="Generates Javadoc for the project">
+    <target name="generate-javadoc" depends="compile">
         <mkdir dir="${javadoc.dir}"/>
 
         <javadoc destdir="${javadoc.dir}"
@@ -94,11 +96,10 @@
                  packagenames="payroll.*"
                  author="true"
                  private="true"
-                 windowtitle="Payroll API">
+                 windowtitle="Payroll">
             <classpath refid="compile.classpath"/>
         </javadoc>
     </target>
-
 
     <target name="package-javadoc"
             depends="generate-javadoc">
@@ -106,25 +107,23 @@
         <zip destfile="${build.dir}/payroll-javadoc.zip"
              basedir="${javadoc.dir}"/>
     </target>
-    <target name="runFromDist" depends="installDist" description="Runs the app using the OS-specific distribution script">
 
+    <target name="runFromDist" depends="installDist" >
 
         <condition property="executable.command" value="bash" else="cmd">
             <os family="unix"/>
         </condition>
 
-
         <condition property="executable.script" value="./run.sh" else="/c run.bat">
             <os family="unix"/>
         </condition>
-
 
         <exec executable="${executable.command}" dir="${dist.dir}" failonerror="true">
             <arg line="${executable.script}"/>
         </exec>
     </target>
 
-    <target name="installDist" depends="deployToDev" description="Assembles the application distribution">
+    <target name="installDist">
         <delete dir="${dist.dir}"/>
         <mkdir dir="${dist.dir}"/>
 
