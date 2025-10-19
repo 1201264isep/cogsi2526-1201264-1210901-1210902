@@ -1,6 +1,6 @@
 package payroll;
 
-enum Status {
+public enum Status {
 
 	IN_PROGRESS, //
 	COMPLETED, //

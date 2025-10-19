@@ -9,14 +9,14 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "CUSTOMER_ORDER")
-class Order {
+public class Order {
 
 	private @Id @GeneratedValue Long id;
 
 	private String description;
 	private Status status;
 
-	Order() {}
+	public Order() {}
 
 	Order(String description, Status status) {
 
