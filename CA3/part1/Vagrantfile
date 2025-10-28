@@ -1,0 +1,127 @@
+Vagrant.configure("2") do |config|
+  # Define the base box
+  config.vm.box = "bento/ubuntu-22.04"
+
+  # Set a static IP address instead of DHCP
+  config.vm.network "private_network", ip: "192.168.56.10"
+  config.vm.network "forwarded_port", guest: 8080, host: 8080
+
+  # Synced folder for H2 database storage
+  config.vm.synced_folder "./h2-data", "/home/vagrant/h2-data", create: true
+
+  CLONE_REPO = ENV['CLONE_REPO'] || 'false'
+  BUILD_RUN_GRADLE_APP = ENV['BUILD_RUN_GRADLE_APP'] || 'false'
+  BUILD_RUN_MAVEN_APP = ENV['BUILD_RUN_MAVEN_APP'] || 'false'
+  GITHUB_TOKEN = ENV['GITHUB_TOKEN']
+
+  # Pass environment variables to the provisioning script
+  config.vm.provision "shell", inline: <<-SHELL
+    echo "CLONE_REPO=#{CLONE_REPO}"
+    echo "BUILD_RUN_GRADLE_APP=#{BUILD_RUN_GRADLE_APP}"
+    echo "BUILD_RUN_MAVEN_APP=#{BUILD_RUN_MAVEN_APP}"
+  SHELL
+
+  config.vm.provision "shell", inline: <<-SHELL
+   #!/bin/bash
+   set -e  # Exit on error
+
+   # Update package list
+   sudo apt-get update
+
+   # Install Git
+   sudo apt-get install -y git
+
+   # Install JDK (OpenJDK 17)
+   sudo apt-get install -y openjdk-17-jdk
+
+   # Install Maven
+   sudo apt-get install -y maven
+
+   # Install Gradle
+   sudo apt-get install -y wget unzip
+   wget https://services.gradle.org/distributions/gradle-7.6-bin.zip -P /tmp
+   sudo unzip -d /opt/gradle /tmp/gradle-7.6-bin.zip
+   sudo ln -s /opt/gradle/gradle-7.6/bin/gradle /usr/bin/gradle
+
+   # Verify installations
+   echo "=== Verifying installations ==="
+   git --version
+   java -version
+   mvn -version
+   gradle -v
+
+   # Clone the repository if the CLONE_REPO variable is set to true
+   if [[ "#{CLONE_REPO}" == "true" ]]; then
+       echo "=== Cloning the repository ==="
+       if [ -d "/home/vagrant/project" ]; then
+           echo "Project directory already exists, removing it..."
+           rm -rf /home/vagrant/project
+       fi
+       git clone https://#{GITHUB_TOKEN}@github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git /home/vagrant/project
+       sudo chown -R vagrant:vagrant /home/vagrant/project
+   else
+       echo "=== Skipping cloning the repository ==="
+   fi
+
+   # Only proceed with build/run steps if repository was cloned
+   if [ -d "/home/vagrant/project" ]; then
+       # Change to the project directory
+       cd /home/vagrant/project
+
+       # Build the Gradle application if BUILD_RUN_GRADLE_APP is true
+       if [[ "#{BUILD_RUN_GRADLE_APP}" == "true" ]]; then
+           echo "=== Building the Gradle application ==="
+           if [ -d "CA2" ]; then
+               cd CA2
+               ./gradlew build
+               cd ..
+           else
+               echo "ERROR: CA2 directory not found!"
+           fi
+       else
+           echo "=== Skipping building the Gradle application ==="
+       fi
+
+       # Build and start the Maven application if BUILD_RUN_MAVEN_APP is true
+       if [[ "#{BUILD_RUN_MAVEN_APP}" == "true" ]]; then
+           echo "=== Starting the Maven application ==="
+           if [ -d "CA1/nonrest" ]; then
+               cd CA1/nonrest
+
+               # Configure H2 for persistent storage
+               cat > src/main/resources/application.properties << 'EOF'
+spring.datasource.url=jdbc:h2:file:/home/vagrant/h2-data/jpadb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+spring.datasource.driverClassName=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+spring.jpa.hibernate.ddl-auto=update
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2-console
+spring.h2.console.settings.web-allow-others=true
+EOF
+
+               # Start the application in background
+               nohup ../mvnw spring-boot:run > /home/vagrant/maven-app.log 2>&1 &
+               echo $! > /home/vagrant/maven-app.pid
+               echo "Maven application started (PID: $(cat /home/vagrant/maven-app.pid))"
+               cd ../..
+           else
+               echo "ERROR: CA1/nonrest directory not found!"
+           fi
+       else
+           echo "=== Skipping starting the Maven application ==="
+       fi
+   else
+       echo "=== Project directory does not exist. Skipping build/run steps ==="
+   fi
+
+   echo "=== Provisioning complete ==="
+  SHELL
+
+  # Optional: Configure VM resources
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "2048"
+    vb.cpus = 2
+  end
+end
