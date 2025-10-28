@@ -1,0 +1,26 @@
+# Create .gitignore in CA3/part2
+cat > .gitignore << 'EOF'
+# Vagrant
+.vagrant/
+*.log
+
+# H2 database data
+h2-data/
+
+# SSH keys (should not be committed)
+*.pem
+*.key
+!*.pub
+
+# VirtualBox
+*.vdi
+*.vmdk
+
+# Backup files
+*.backup
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+EOF

@@ -1,0 +1,90 @@
+Vagrant.configure("2") do |config|
+
+  # Environment variables for conditional provisioning
+  CLONE_REPO = ENV['CLONE_REPO'] || 'true'
+  START_SERVICES = ENV['START_SERVICES'] || 'true'
+  GITHUB_TOKEN = ENV['GITHUB_TOKEN']
+
+  # Generate SSH keys if they don't exist
+  system('
+    if [ ! -f ~/.ssh/db_key ]; then
+      ssh-keygen -t rsa -b 2048 -f ~/.ssh/db_key -N ""
+      echo "Generated db_key"
+    fi
+    if [ ! -f ~/.ssh/app_key ]; then
+      ssh-keygen -t rsa -b 2048 -f ~/.ssh/app_key -N ""
+      echo "Generated app_key"
+    fi
+  ')
+
+  # SSH configuration
+  config.ssh.insert_key = false
+  config.ssh.private_key_path = [
+    "~/.vagrant.d/insecure_private_key",
+    "~/.ssh/db_key",
+    "~/.ssh/app_key"
+  ]
+
+  # ============================================
+  # DATABASE VM
+  # ============================================
+  config.vm.define "db" do |db|
+    db.vm.box = "bento/ubuntu-22.04"  # Ubuntu 22.04 LTS
+    db.vm.hostname = "db"
+
+    # Network configuration
+    db.vm.network "private_network", ip: "192.168.56.11"
+
+    # VM resources
+    db.vm.provider "virtualbox" do |vb|
+      vb.name = "ca3-part2-db"
+      vb.memory = "1024"
+      vb.cpus = 1
+    end
+
+    # Provision SSH public key
+    db.vm.provision "file",
+      source: "~/.ssh/db_key.pub",
+      destination: "~/.ssh/authorized_keys"
+
+    # Synced folder for H2 data persistence
+    db.vm.synced_folder "./h2-data", "/home/vagrant/h2-data", create: true
+
+    # Provision the database
+    db.vm.provision "shell", path: "provision_db.sh"
+  end
+
+  # ============================================
+  # APPLICATION VM
+  # ============================================
+  config.vm.define "app" do |app|
+    app.vm.box = "bento/ubuntu-22.04"  # Ubuntu 22.04 LTS
+    app.vm.hostname = "app"
+
+    # Network configuration
+    app.vm.network "private_network", ip: "192.168.56.12"
+    app.vm.network "forwarded_port", guest: 8080, host: 8080
+
+    # VM resources
+    app.vm.provider "virtualbox" do |vb|
+      vb.name = "ca3-part2-app"
+      vb.memory = "2048"
+      vb.cpus = 2
+    end
+
+    # Provision SSH public key
+    app.vm.provision "file",
+      source: "~/.ssh/app_key.pub",
+      destination: "~/.ssh/authorized_keys"
+
+    # Provision the application
+    app.vm.provision "shell",
+      path: "provision_app.sh",
+      args: [CLONE_REPO, START_SERVICES],
+      env: {
+        "GITHUB_TOKEN" => GITHUB_TOKEN,
+        "CLONE_REPO" => CLONE_REPO,
+        "START_SERVICES" => START_SERVICES
+      }
+  end
+end
