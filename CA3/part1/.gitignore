@@ -1,0 +1,25 @@
+# Vagrant
+.vagrant/
+*.log
+
+# H2 database data folder (persistent data should not be in repo)
+h2-data/
+
+# VirtualBox files
+*.vdi
+*.vmdk
+*.vbox
+*.vbox-prev
+
+# Backup files
+*.backup
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files (if you edit files here)
+.idea/
+.vscode/
+*.iml
