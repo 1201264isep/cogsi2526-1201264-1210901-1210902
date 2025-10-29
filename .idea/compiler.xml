@@ -23,6 +23,8 @@
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="spring-framework-petclinic" options="-parameters" />
+      <module name="spring-framework-petclinic (1)" options="-parameters" />
+      <module name="spring-framework-petclinic (2)" options="-parameters" />
       <module name="tut-gradle" options="-parameters" />
       <module name="tut-gradle.integrationTest" options="-parameters" />
       <module name="tut-gradle.main" options="-parameters" />
