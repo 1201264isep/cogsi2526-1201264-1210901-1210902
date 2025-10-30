@@ -1,0 +1,25 @@
+FROM eclipse-temurin:17-jdk-focal
+
+# Install utilities like wget (to download) and net-tools (for diagnostics)
+RUN apt-get update && apt-get install -y wget net-tools netcat-openbsd
+
+ENV H2_DIR /opt/h2
+ENV H2_DATA_DIR /opt/h2-data
+
+# Create the directories inside the image where H2 will live and store its data
+RUN mkdir -p $H2_DIR && mkdir -p $H2_DATA_DIR
+
+# Download the specific H2 JAR file directly into the image.
+RUN wget https://repo1.maven.org/maven2/com/h2database/h2/2.1.214/h2-2.1.214.jar -O $H2_DIR/h2.jar
+
+# Set the working directory to the data folder. The H2 server will run from here.
+WORKDIR $H2_DATA_DIR
+
+# Expose the ports for the TCP server (for the app)
+EXPOSE 9092
+
+# This command directly launches the H2 server with all the necessary parameters to allow remote connections and to use the persistent data volume.
+CMD ["java", "-cp", "/opt/h2/h2.jar", "org.h2.tools.Server", \
+     "-tcp", "-tcpAllowOthers", "-tcpPort", "9092", \
+     "-baseDir", "/opt/h2-data", \
+     "-ifNotExists"]

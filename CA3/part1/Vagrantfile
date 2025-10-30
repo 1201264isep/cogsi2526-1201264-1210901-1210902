@@ -119,7 +119,7 @@ EOF
    echo "=== Provisioning complete ==="
   SHELL
 
-  # Optional: Configure VM resources
+  # Configure VM resources
   config.vm.provider "virtualbox" do |vb|
     vb.memory = "2048"
     vb.cpus = 2

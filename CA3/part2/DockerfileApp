@@ -1,0 +1,32 @@
+FROM gradle:8.5.0-jdk17 AS builder
+
+# Install git
+RUN apt-get update && apt-get install -y git
+
+WORKDIR /home/gradle/project
+
+# Argument to securely pass the repository URL during the build
+ARG REPO_URL
+# Clone the repository passed from docker-compose
+RUN git clone ${REPO_URL} .
+
+# Set the working directory to the specific Gradle project
+WORKDIR /home/gradle/project/CA2-part2/tut-gradle
+
+# Build the application using Gradle from the base image
+RUN gradle build -x test
+
+
+# === STAGE 2: Create the final, lightweight runtime image ===
+FROM eclipse-temurin:17-jre-focal
+
+WORKDIR /app
+
+# Copy ONLY the final application JAR from the 'builder' stage
+COPY --from=builder /home/gradle/project/CA2-part2/tut-gradle/build/libs/*.jar app.jar
+
+# Expose the application port
+EXPOSE 8080
+
+# The command to run the Spring Boot application when the container starts
+ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,0 +1,21 @@
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cogsi_part1
+    ports:
+      - "8080:8080"   # Spring Boot web interface
+      - "59001:59001" # Chat server
+    volumes:
+      - ./data:/app/data           # Persistent H2 data
+      - ./provision.sh:/app/provision.sh
+    environment:
+      - CLONE_REPO=true            # Control repo cloning
+      - START_SERVICES=true        # Control service startup
+      - REPO_URL=https://1201264isep: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@github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git
+    working_dir: /app
+    command: /bin/bash /app/provision.sh
+    stdin_open: true
+    tty: true
