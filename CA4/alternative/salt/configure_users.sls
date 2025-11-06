@@ -18,7 +18,6 @@ restrict_app_dir_access:
     - user: devuser
     - group: developers
     - mode: '770'
-    - onlyif: "test -d /home/vagrant/app" 
     - require:
       - user: create_devuser
 
