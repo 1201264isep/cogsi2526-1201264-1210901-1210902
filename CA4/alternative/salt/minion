@@ -1,0 +1,18 @@
+
+masterless: true
+file_client: local
+
+# Tell the minion where to find the state files
+file_roots:
+  base:
+    - /srv/salt
+
+base:
+  'db': 
+    - db
+    - pam
+    - users
+  'app': 
+    - app
+    - pam
+    - users
