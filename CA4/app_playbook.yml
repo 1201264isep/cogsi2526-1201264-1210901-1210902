@@ -1,3 +1,4 @@
+---
 - hosts: app
   become: yes
   tasks:

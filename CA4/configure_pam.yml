@@ -1,12 +1,48 @@
+---
 - name: Install PAM dependencies
   apt:
-    name: "libpam-pwquality"
+    name:
+      - libpam-pwquality
+      - libpam-modules
     state: present
-    update_cache: yes
 
 - name: Configure pam_pwquality
   lineinfile:
     path: "/etc/pam.d/common-password"
     regexp: "pam_pwquality.so"
-    line: "password required pam_pwquality.so minlen=12 lcredit=-1 ucredit=-1 dcredit=-1 ocredit=-1 retry=3 enforce_for_root"
+    line: "password requisite pam_pwquality.so minlen=12 minclass=3 lcredit=-1 ucredit=-1 dcredit=-1 ocredit=-1 enforce_for_root usercheck=1 dictcheck=1"
     state: present
+  # - minlen=12        → minimum 12 characters
+  # - minclass=3       → at least 3 of 4 character classes (upper, lower, digit, symbol)
+  # - l/u/d/o credit   → require at least one of each type
+  # - usercheck=1      → disallow passwords containing username or parts of it
+  # - dictcheck=1      → reject common dictionary words
+  # - enforce_for_root → also enforce for root user
+
+- name: Ensure pam_unix prevents password reuse
+  lineinfile:
+    path: "/etc/pam.d/common-password"
+    regexp: "pam_unix.so"
+    line: "password sufficient pam_unix.so sha512 shadow remember=5"
+    state: present
+  # - remember=5 → disallow reuse of last 5 passwords
+
+- name: Configure account lockout policy (faillock)
+  lineinfile:
+    path: "/etc/pam.d/common-auth"
+    insertafter: "pam_env.so"
+    line: |
+      auth required pam_faillock.so preauth silent deny=5 unlock_time=600
+      auth [default=die] pam_faillock.so authfail deny=5 unlock_time=600
+    state: present
+  # - deny=5        → lock account after 5 failed attempts
+  # - unlock_time=600 → unlock after 600 seconds (10 minutes)
+  # - applies globally to all accounts
+
+- name: Ensure faillock is enforced on account phase
+  lineinfile:
+    path: "/etc/pam.d/common-account"
+    insertafter: "pam_permit.so"
+    line: "account required pam_faillock.so"
+    state: present
+  # Ensure faillock is applied on account stage

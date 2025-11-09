@@ -1,3 +1,4 @@
+---
 - hosts: db
   become: yes
   tasks:
