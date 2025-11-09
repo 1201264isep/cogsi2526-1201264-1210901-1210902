@@ -9,8 +9,6 @@ Vagrant.configure("2") do |config|
     source: "~/.ssh/db_key",
     destination: "/home/vagrant/.ssh/db_key"
 
-
-
   # SSH private key paths
   config.ssh.private_key_path = [
     "~/.vagrant.d/insecure_private_key",
