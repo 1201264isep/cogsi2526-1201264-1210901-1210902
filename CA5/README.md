@@ -230,10 +230,6 @@ a partir de um Dockerfile (o ficheiro que contém instruções para criar a imag
 
 `<chat_image>:<chat_tag>`: Especifica a imagem a ser usada para executar o contentor.
 
-![img.png](images/img.png)
-
-![img_3.png](images/img_3.png)
-
 ##### Spring
 `docker run -p 8080:8080 <spring_image>:<spring_tag>` 
 
@@ -242,8 +238,6 @@ a partir de um Dockerfile (o ficheiro que contém instruções para criar a imag
 `-p 8080:8080`: Esta opção mapeia a porta na máquina host (primeira 8080) para a porta no contentor (segunda 8080).
 
 `<spring_image>:<spring_tag>`: Isto especifica a imagem a ser usada para executar o contentor.
-
-![img_4.png](images/img_4.png)
 
 ### Optimize the Dockerfiles
 
@@ -271,7 +265,6 @@ O sinalizador `--no-cache` impede que o cache temporário do pacote seja guardad
    - Eliminou a necessidade de comandos de limpeza adicionais (como `rm` ou `apt-get clean`) seguindo as melhores práticas da Alpine.
   
 Vamos usar a imagem do chat como exemplo:
-![img_7.png](images/img_7.png)
 Como podemos ver, a imagem otimizada do chat é aquela com o menor tamanho.
 
 ## Containerized Environment with Docker Compose
@@ -474,10 +467,6 @@ Quando executar este comando, o Docker Compose irá:
 
 - Criar e iniciar os contentores definidos no ficheiro docker-compose.yml.
 - Exibir os registos dos contentores no terminal. Para parar, pode premir Ctrl+C.
-
-![img_6.png](images/img_6.png)
-
-![img_5.png](images/img_5.png)
 
 ### Useful Docker and Docker Compose Commands
 Aqui está uma folha de dicas de comandos úteis do Docker e do Docker Compose para gerir contentores, imagens, redes e volumes - [Docker Cheat Sheet](https://dockerlabs.collabnix.com/docker/cheatsheet/).
