@@ -15,7 +15,6 @@
    4. [Data Persistence with Docker Volumes](#data-persistence-with-docker-volumes)
    5. [Publishing](#publishing)
 3. [Useful Docker and Docker Compose Commands](#useful-docker-and-docker-compose-commands)
-4. [Docker Alternative](#docker-alternative)
 
 
 
@@ -116,7 +115,7 @@ RUN apt-get update && \
 # Add an ARG instruction to pass the GitHub token
 ARG GITHUB_TOKEN
 # Clone the repository into the container using the token
-RUN git clone https://${GITHUB_TOKEN}@github.com/britz27/cogsi2425_1201461_1240469_1240448_1211497.git /app
+RUN git clone https://${GITHUB_TOKEN}@github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git /app
 # Set the working directory inside the cloned repo
 WORKDIR /app/CA2
 # Grant execute permissions to the Gradle wrapper script
@@ -155,7 +154,7 @@ RUN apt-get update && \
 # Add an ARG instruction to pass the GitHub token
 ARG GITHUB_TOKEN
 # Clone the repository into the container using the token
-RUN git clone https://${GITHUB_TOKEN}@github.com/britz27/cogsi2425_1201461_1240469_1240448_1211497.git /app
+RUN git clone https://${GITHUB_TOKEN}@github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git /app
 # Set the working directory inside the cloned repo
 WORKDIR /app/CA2/CA2_Part2
 # Grant execute permissions to the Gradle wrapper script
@@ -479,10 +478,6 @@ Quando executar este comando, o Docker Compose irá:
 ![img_6.png](images/img_6.png)
 
 ![img_5.png](images/img_5.png)
-
-
-### Dockerhub
-`https://hub.docker.com/repositories/monteiro20`
 
 ### Useful Docker and Docker Compose Commands
 Aqui está uma folha de dicas de comandos úteis do Docker e do Docker Compose para gerir contentores, imagens, redes e volumes - [Docker Cheat Sheet](https://dockerlabs.collabnix.com/docker/cheatsheet/).
