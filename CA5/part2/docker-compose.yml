@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  db:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    container_name: h2-database
+    ports:
+      - "8082:8082"  # H2 web console
+      - "9092:9092"  # H2 TCP server
+    volumes:
+      - h2-data:/app/data
+    environment:
+      - H2_OPTIONS=-tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082
+    healthcheck:
+      test: ["CMD", "java", "-cp", "/app/h2.jar", "org.h2.tools.Shell", "-url", "jdbc:h2:tcp://localhost:9092/./data/jpadb", "-user", "sa", "-password", "", "-sql", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: spring-boot-app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://db:9092/./data/jpadb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      - SPRING_DATASOURCE_DRIVERCLASSNAME=org.h2.Driver
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.H2Dialect
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_H2_CONSOLE_ENABLED=true
+      - SPRING_H2_CONSOLE_PATH=/h2-console
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  h2-data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
