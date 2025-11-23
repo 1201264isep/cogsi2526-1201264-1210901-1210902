@@ -507,4 +507,316 @@ Aqui está uma folha de dicas de comandos úteis do Docker e do Docker Compose p
 | `docker-compose rm`                        | Removes stopped service containers.                                                                                 |
 | `docker-compose run <service> <command>`  | Runs a one-off command in a new container of the specified service.                                                 |
 
+# Alternativas
+Na escolha da tecnologia para este projeto, considerei várias alternativas ao Docker.
+O Podman foi excluído por ser demasiado similar ao Docker. O CRI-O foi descartado por estar demasiado ligado a Kubernetes, sem suporte para builds locais independentes. O LXC/LXD foi afastado porque opera ao nível do sistema operativo, aproximando-se mais do Vagrant do que ao modelo de containers de aplicação. 
+
+
+## Análise
+
+### Docker vs. containerd + nerdctl
+
+*   **Docker**: É uma plataforma de contentorização que combina a criação de imagens, a execução de contentores e a orquestração dos mesmos. O Docker utiliza uma arquitetura cliente-servidor com um *daemon* persistente (dockerd) que gere todas as operações dos contentores. Foi criado para ser fácil de usar e oferece uma solução completa para o uso de contentores. Para além disso, tem acesso ao Docker Compose, o que lhe permite lidar com aplicações de vários contentores.
+
+*   **containerd + nerdctl**: Esta abordagem utiliza o containerd como *runtime* de contentores de baixo nível (o mesmo que o Docker utiliza internamente) combinado com o nerdctl, uma ferramenta CLI compatível com Docker. O containerd é um *runtime* minimalista e de alto desempenho que implementa as especificações OCI (*Open Container Initiative*). O nerdctl fornece uma interface de linha de comandos familiar aos utilizadores de Docker, mantendo compatibilidade com Dockerfiles e docker-compose, mas operando diretamente sobre o containerd sem a camada adicional do Docker Engine.
+
+| **Aspeto** | **Docker**                                                                                                                                                         | **containerd + nerdctl**                                                                                                                                               |
+| :--- |:-------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Arquitetura** | Modelo cliente-servidor em três camadas: Docker CLI → dockerd (*daemon*) → containerd → runc. O dockerd adiciona uma camada de abstração e funcionalidades extras. | Arquitetura simplificada em duas camadas: nerdctl → containerd → runc. Elimina a camada intermediária do dockerd, resultando numa arquitetura mais direta e eficiente. |
+| **Criação de Imagens** | Comando integrado `docker build`. As compilações ocorrem através do *daemon* do Docker (dockerd).                                                                  | `nerdctl build` suporta a mesma sintaxe de Dockerfile. As compilações ocorrem através do BuildKit externo.                                                             |
+| ***Runtime* de Contentores** | Docker Engine → containerd → runc. Três componentes em cadeia, onde o dockerd coordena as operações.                                                               | containerd → runc. Acesso direto ao containerd, que é o *runtime*  utilizado pelo Kubernetes e pelo próprio Docker.                                                    |
+| **Orquestração de Múltiplos Contentores** | Docker Compose oferece orquestração simples baseada em YAML com o comando `docker-compose up`.                                                                     | `nerdctl compose` é totalmente compatível com os ficheiros docker-compose.yaml, oferecendo funcionalidade equivalente mas executando diretamente sobre o containerd.   |
+| **Uso de Recursos** | Maior consumo de memória e CPU devido ao *daemon* dockerd adicional e às suas funcionalidades extra.                                                               | Menor utilização de recursos mas apenas notáveis com uma grande quantidade de containers                                                                               |
+| **Gestão de Estado** | O dockerd mantém estado extensivo dos contentores, imagens, redes e volumes através da sua API. | O containerd mantém estado especializado em containers e imagens focado no runtime.                                                                                    |
+| **Monitorização** | `docker stats`, `docker logs`, `docker inspect` e vastas ferramentas integradas e de terceiros.                                                                    | `nerdctl stats`, `nerdctl logs`, `nerdctl inspect` com sintaxe idêntica ao Docker                                                                                      |
+| **Rede (*Networking*)** | Redes Docker integradas (*bridge*, *host*, *overlay*). Gestão via `docker network`.                                                                                | Requer o suporte de plugins CNI (*Container Network Interface*).                                                                                                       |
+| **Adoção e Ecossistema** | Standard  para desenvolvimento. Grande comunidade e suporte.                                                                                                       | Adoção crescente em ambientes de produção e Kubernetes. Utilizado internamente pelo Docker Desktop e Kubernetes.                                                       |
+| **Casos de Uso Ideais** | Desenvolvimento local  e projetos tradicionais devido à integração com outras ferramentas.                                                                         | Ambientas de produção Kubernetes e sistemas embedidos                                                                                                                  |
+
+### Principais vantagens do containerd + nerdctl
+
+#### 1. Acesso Direto e Namespaces 
+A maior diferença prática nesta implementação é a gestão de **Namespaces**.
+*   **No Docker:** O Docker "esconde" os namespaces do containerd. Para isolar ambientes  é necessário correr configurações complexas.
+*   **No nerdctl:** Os namespaces são expostos. Na nossa implementação, utilizámos a flag `--namespace ca5-lab`. Isto isola completamente as imagens, volumes e contentores deste trabalho dos restantes no sistema. 
+
+#### 2. Network
+Enquanto o Docker usa o seu próprio modelo (Container Network Model), o `nerdctl` utiliza plugins **CNI (Container Network Interface)**.
+*   **A Importância:** O CNI é o padrão utilizado pelo Kubernetes. Ao usar `nerdctl`, a gestão de rede  durante o desenvolvimento local torna-se super parecido ao ambiente de kubernetes.
+
+#### 3. Processo de  Build (BuildKit)
+No Docker, o processo de *build* acontece dentro do daemon . No `nerdctl`, é necessário iniciar o `buildkitd` separadamente (como  no passo 1 da implementação).
+*   **Vantagem:** Embora adicione um passo extra de configuração, isto permite que a infraestrutura de *build* escale independentemente da infraestrutura de execução (*runtime*).
+
+#### 4. Segurança
+A segurança é uma das principais vantagens arquiteturais do `nerdctl`.
+Tradicionalmente, o daemon do Docker corre com privilégios `root`, o que representa um risco de segurança. O `nerdctl` foi desenhado para utilizar o `RootlessKit` de forma nativa, permitindo que contentores corram sem privilégios de administrador, mitigando o impacto de possíveis ataques.
+
+## Implementação
+
+1. Iniciar o BuildKit em background:
+```bash
+sudo buildkitd &
+```
+
+1. Criar um namespace para o assignment:
+```bash
+sudo nerdctl namespace create ca5-lab
+```
+
+### Imagens aplicação chat
+
+#### Version 1:
+
+1. Ir para o diretório do Dockerfile v1 da chat application e construir a imagem:
+```bash
+sudo nerdctl --namespace ca5-lab build -t chat-app-v1 .
+```
+
+2. Correr o container:
+```bash
+sudo nerdctl --namespace ca5-lab run -d \
+  --name chat-server-v1 \
+  -p 59001:59001 \
+  chat-app-v1
+```
+
+#### Version 2: construir na host machine e copiar o jar para o dockerfile
+
+1. Gerar o JAR da aplicação:
+```bash
+./gradlew build
+```
+
+2. Ir para o diretório do Dockerfile v2 da chat application e construir a imagem:
+```bash
+sudo nerdctl --namespace ca5-lab build -t chat-app-v2 .
+```
+
+3. Correr o container:
+```bash
+sudo nerdctl --namespace ca5-lab run -d \
+  --name chat-server-v2 \
+  -p 59002:59001 \
+  chat-app-v2
+```
+
+4. Verificar que está a correr:
+```bash
+sudo nerdctl --namespace ca5-lab ps
+```
+
+#### Multi Stage
+
+1. Ir para o diretório do Dockerfile v2 (multi-stage) da chat application:
+```bash
+sudo nerdctl --namespace ca5-lab build -t chat-app-multistage .
+```
+
+2. Correr o container:
+```bash
+sudo nerdctl --namespace ca5-lab run -d \
+  --name chat-server-multistage \
+  -p 59003:59001 \
+  chat-app-multistage
+```
+
+### Imagens aplicação spring
+
+#### Version 1:
+1. Ir para o diretório do Dockerfile v1 da spring application e construir a imagem:
+```bash
+sudo nerdctl --namespace ca5-lab build -t spring-app-v1 .
+```
+
+2. Correr o container:
+```bash
+sudo nerdctl --namespace ca5-lab run -d \
+  --name spring-server-v1 \
+  -p 8080:8080 \
+  spring-app-v1
+```
+
+3. Verificar que está a correr:
+```bash
+sudo nerdctl --namespace ca5-lab ps
+```
+
+#### Version 2: construir na host machine e copiar o jar para o dockerfile
+
+1. Gerar o JAR da aplicação:
+```bash
+./gradlew build
+```
+
+2. Ir para o diretório do Dockerfile v1 da spring application e construir a imagem:
+```bash
+sudo nerdctl --namespace ca5-lab build -t spring-app-v2 .
+```
+
+3. Correr o container:
+```bash
+sudo nerdctl --namespace ca5-lab run -d \
+  --name spring-server-v2 \
+  -p 8081:8080 \
+  spring-app-v2
+```
+
+4. Verificar que está a correr:
+```bash
+sudo nerdctl --namespace ca5-lab ps
+```
+#### Multi Stage
+
+
+1. Ir para o diretório do Dockerfile (multi-stage) da spring applicação:
+```bash
+sudo nerdctl --namespace ca5-lab build -t spring-app-multistage .
+```
+
+1. Correr o container:
+```bash
+sudo nerdctl --namespace ca5-lab run -d \
+  --name spring-server-multistage \
+  -p 8082:8080 \
+  spring-app-multistage
+```
+
+### Inspecionar as imagens
+
+Para ver os passos individuais de cada imagem:
+```bash
+sudo nerdctl --namespace ca5-lab history <nome_da_imagem>
+```
+
+Para comparar facilmente o tamanho das imagens:
+```bash
+sudo nerdctl --namespace ca5-lab images
+```
+![img.png](img.png)
+**Análise de Tamanho:**
+
+Como podemos ver, a V1 a correr no Docker adiciona 454 MiB, o que torna a imagem quase três vezes maior. Isto deve-se ao facto de as ferramentas de compilação necessárias para construir a aplicação estarem instaladas na imagem, apesar de não serem necessárias para a execução propriamente dita.
+
+O Multi-Stage build e a v2 têm o mesmo tamanho, mas a V2 requer que as ferramentas (Java e Gradle) estejam instaladas na máquina, enquanto o multi-stage faz com que o Docker trate do processo.
+
+Para monitorizar o uso de recursos:
+```bash
+sudo nerdctl --namespace ca5-lab stats
+```
+![img_1.png](img_1.png)
+
+### Publicar imagens to Docker Hub
+
+1. Fazer login no Docker Hub:
+```bash
+sudo nerdctl --namespace ca5-lab login
+```
+
+2. Tag das imagens:
+```bash
+sudo nerdctl --namespace ca5-lab tag chat-app-multistage franciscogouveia1111/chat-app
+
+sudo nerdctl --namespace ca5-lab tag spring-app-multistage franciscogouveia1111/spring-app
+```
+
+3. Push para o Docker Hub:
+```bash
+sudo nerdctl --namespace ca5-lab push franciscogouveia1111/chat-app
+sudo nerdctl --namespace ca5-lab push franciscogouveia1111/spring-app
+```
+
+
+## Set Up de vários containers com o compose
+
+1. Ir para o diretório da parte 2 (onde está o docker-compose.yml) e iniciar com:
+```bash
+sudo nerdctl --namespace ca5-lab compose up -d
+```
+
+2. Verificar que os serviços estão a correr:
+```bash
+sudo nerdctl --namespace ca5-lab compose ps
+```
+
+![img_2.png](img_2.png)
+
+#### Teste da Rede
+
+1. Entrar no container da spring application e pingar o hostname da base de dados:
+```bash
+sudo nerdctl --namespace ca5-lab exec -it spring-boot-app /bin/sh
+ping db
+```
+
+2. Entrar no container da base de dados e pingar o hostname da web application:
+```bash
+sudo nerdctl --namespace ca5-lab exec -it h2-database /bin/sh
+ping web
+```
+![img_3.png](img_3.png)
+
+#### Verificar Persistência do Volume
+
+1. Listar os volumes existentes:
+```bash
+sudo nerdctl --namespace ca5-lab volume ls
+```
+
+2. Fazer um request para adicionar informação à base de dados:
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"firstName": "Gandalf", "lastName": "the Grey", "role": "wizard"}' http://localhost:8080/employees
+```
+
+3. Remover os containers:
+```bash
+sudo nerdctl --namespace ca5-lab compose down
+```
+
+4. Voltar a construir e iniciar os containers:
+```bash
+sudo nerdctl --namespace ca5-lab compose up -d
+```
+
+5. Verificar que os dados persistiram:
+![img_4.png](img_4.png)
+
+### Publcação das imagens
+
+1. Fazer login no Docker Hub:
+```bash
+sudo nerdctl --namespace ca5-lab login
+```
+
+2. Tag das imagens:
+```bash
+sudo nerdctl --namespace ca5-lab tag part2_db:latest franciscogouveia1111/h2-database:v1.0
+sudo nerdctl --namespace ca5-lab tag part2_web:latest franciscogouveia1111/spring-rest-web:v1.0
+```
+
+3. Push para o Docker Hub:
+```bash
+sudo nerdctl --namespace ca5-lab push franciscogouveia1111/h2-database:v1.0
+sudo nerdctl --namespace ca5-lab push franciscogouveia1111/spring-rest-web:v1.0
+```
+![img_5.png](img_5.png)
+4. Verificar no Docker Hub que as imagens foram publicadas com sucesso
+
+### Commandos nerdctl úteis
+
+| **Command** | **Description** |
+|-------------|-----------------|
+| `sudo nerdctl --namespace <namespace> images` | Lista todas as imagens locais no namespace. |
+| `sudo nerdctl --namespace <namespace> rmi <IMAGE_ID>` | Remove uma imagem por ID. |
+| `sudo nerdctl --namespace <namespace> ps` | Lista containers em execução. |
+| `sudo nerdctl --namespace <namespace> logs <container_name>` | Mostra os logs de um container. |
+| `sudo nerdctl --namespace <namespace> stop <container_id>` | Para um container em execução. |
+| `sudo nerdctl --namespace <namespace> start <container>` | Inicia um container parado. |
+| `sudo nerdctl --namespace <namespace> history <image_name>` | Mostra o histórico das camadas de uma imagem. |
+| `sudo nerdctl --namespace <namespace> stats` | Mostra o uso de recursos em tempo real. |
+| `sudo nerdctl --namespace <namespace> compose up -d` | Inicia containers definidos no compose file em modo detached. |
+| `sudo nerdctl --namespace <namespace> compose down` | Para e remove containers, redes e volumes criados pelo compose. |
+| `sudo nerdctl --namespace <namespace> compose ps` | Lista containers criados pelo compose file. |
+| `sudo nerdctl --namespace <namespace> volume ls` | Lista todos os volumes. |
 
