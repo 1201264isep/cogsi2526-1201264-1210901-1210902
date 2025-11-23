@@ -527,7 +527,7 @@ Aqui está uma folha de dicas de comandos úteis do Docker e do Docker Compose p
 
 # Alternativas
 Na escolha da tecnologia para este projeto, considerei várias alternativas ao Docker.
-O Podman foi excluído por ser demasiado similar ao Docker. O CRI-O foi descartado por estar demasiado ligado a Kubernetes, sem suporte para builds locais independentes. O LXC/LXD foi afastado porque opera ao nível do sistema operativo, aproximando-se mais do Vagrant do que ao modelo de containers de aplicação. 
+ O CRI-O foi descartado por estar demasiado ligado a Kubernetes, sem suporte para builds locais independentes. O LXC/LXD foi afastado porque opera ao nível do sistema operativo invês de ao nivel de applicações. 
 
 
 ## Análise
@@ -543,13 +543,13 @@ O Podman foi excluído por ser demasiado similar ao Docker. O CRI-O foi descarta
 | **Arquitetura** | Modelo cliente-servidor em três camadas: Docker CLI → dockerd (*daemon*) → containerd → runc. O dockerd adiciona uma camada de abstração e funcionalidades extras. | Arquitetura simplificada em duas camadas: nerdctl → containerd → runc. Elimina a camada intermediária do dockerd, resultando numa arquitetura mais direta e eficiente. |
 | **Criação de Imagens** | Comando integrado `docker build`. As compilações ocorrem através do *daemon* do Docker (dockerd).                                                                  | `nerdctl build` suporta a mesma sintaxe de Dockerfile. As compilações ocorrem através do BuildKit externo.                                                             |
 | ***Runtime* de Contentores** | Docker Engine → containerd → runc. Três componentes em cadeia, onde o dockerd coordena as operações.                                                               | containerd → runc. Acesso direto ao containerd, que é o *runtime*  utilizado pelo Kubernetes e pelo próprio Docker.                                                    |
-| **Orquestração de Múltiplos Contentores** | Docker Compose oferece orquestração simples baseada em YAML com o comando `docker-compose up`.                                                                     | `nerdctl compose` é totalmente compatível com os ficheiros docker-compose.yaml, oferecendo funcionalidade equivalente mas executando diretamente sobre o containerd.   |
-| **Uso de Recursos** | Maior consumo de memória e CPU devido ao *daemon* dockerd adicional e às suas funcionalidades extra.                                                               | Menor utilização de recursos mas apenas notáveis com uma grande quantidade de containers                                                                               |
+| **Orquestração de Múltiplos Contentores** | Docker Compose oferece orquestração simples baseada em YAML com o comando `docker-compose up`.                                                                     | `nerdctl compose` é compatível com os ficheiros docker-compose.yaml, oferecendo funcionalidade equivalente mas executando diretamente sobre o containerd.              |
+| **Uso de Recursos** | Maior consumo de memória e CPU devido ao *daemon* dockerd adicional e às suas funcionalidades extra.                                                               | Menor utilização de recursos especialmente notável com uma grande quantidade de containers                                                                             |
 | **Gestão de Estado** | O dockerd mantém estado extensivo dos contentores, imagens, redes e volumes através da sua API. | O containerd mantém estado especializado em containers e imagens focado no runtime.                                                                                    |
 | **Monitorização** | `docker stats`, `docker logs`, `docker inspect` e vastas ferramentas integradas e de terceiros.                                                                    | `nerdctl stats`, `nerdctl logs`, `nerdctl inspect` com sintaxe idêntica ao Docker                                                                                      |
 | **Rede (*Networking*)** | Redes Docker integradas (*bridge*, *host*, *overlay*). Gestão via `docker network`.                                                                                | Requer o suporte de plugins CNI (*Container Network Interface*).                                                                                                       |
-| **Adoção e Ecossistema** | Standard  para desenvolvimento. Grande comunidade e suporte.                                                                                                       | Adoção crescente em ambientes de produção e Kubernetes. Utilizado internamente pelo Docker Desktop e Kubernetes.                                                       |
-| **Casos de Uso Ideais** | Desenvolvimento local  e projetos tradicionais devido à integração com outras ferramentas.                                                                         | Ambientas de produção Kubernetes e sistemas embedidos                                                                                                                  |
+| **Adoção e Ecossistema** | Standard  para desenvolvimento. Grande comunidade e suporte.                                                                                                       | Adoção crescente em ambientes de produção e Kubernetes.                                                                                                                |
+| **Casos de Uso Ideais** | Desenvolvimento local  e projetos tradicionais devido à integração com outras ferramentas.                                                                         | Ambientes de produção Kubernetes e sistemas embedidos                                                                                                                  |
 
 ### Principais vantagens do containerd + nerdctl
 
@@ -568,7 +568,8 @@ No Docker, o processo de *build* acontece dentro do daemon . No `nerdctl`, é ne
 
 #### 4. Segurança
 A segurança é uma das principais vantagens arquiteturais do `nerdctl`.
-Tradicionalmente, o daemon do Docker corre com privilégios `root`, o que representa um risco de segurança. O `nerdctl` foi desenhado para utilizar o `RootlessKit` de forma nativa, permitindo que contentores corram sem privilégios de administrador, mitigando o impacto de possíveis ataques.
+Tradicionalmente, o daemon do Docker corre com privilégios `root`, o que representa um risco de segurança. O `nerdctl` tem melhor suporte para o `RootlessKit`, permitindo que contentores corram sem privilégios de administrador, mitigando o impacto de possíveis ataques.
+Na nossa implementação foi usado o SUDO devido à conveniência de configuração.
 
 ## Implementação
 
@@ -714,7 +715,7 @@ sudo nerdctl --namespace ca5-lab images
 ![img.png](img.png)
 **Análise de Tamanho:**
 
-Como podemos ver, a V1 a correr no Docker adiciona 454 MiB, o que torna a imagem quase três vezes maior. Isto deve-se ao facto de as ferramentas de compilação necessárias para construir a aplicação estarem instaladas na imagem, apesar de não serem necessárias para a execução propriamente dita.
+Como podemos ver, a V1 a correr no Docker adiciona 454 MiB, o que torna a imagem quase três vezes maior. Isto deve-se ao facto de as ferramentas de compilação necessárias para construir a aplicação estarem instaladas na imagem assim como o repositório em si, apesar de não serem necessárias para a execução propriamente dita.
 
 O Multi-Stage build e a v2 têm o mesmo tamanho, mas a V2 requer que as ferramentas (Java e Gradle) estejam instaladas na máquina, enquanto o multi-stage faz com que o Docker trate do processo.
 
@@ -789,7 +790,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 3. Remover os containers:
 ```bash
-sudo nerdctl --namespace ca5-lab compose down
+sudo nerdctl --namespace ca5-lab compose down -v
 ```
 
 4. Voltar a construir e iniciar os containers:
@@ -800,7 +801,7 @@ sudo nerdctl --namespace ca5-lab compose up -d
 5. Verificar que os dados persistiram:
 ![img_4.png](img_4.png)
 
-### Publcação das imagens
+### Publicação das imagens
 
 1. Fazer login no Docker Hub:
 ```bash
@@ -821,7 +822,7 @@ sudo nerdctl --namespace ca5-lab push franciscogouveia1111/spring-rest-web:v1.0
 ![img_5.png](img_5.png)
 4. Verificar no Docker Hub que as imagens foram publicadas com sucesso
 
-### Commandos nerdctl úteis
+### Comandos nerdctl úteis
 
 | **Command** | **Description** |
 |-------------|-----------------|
