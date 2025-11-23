@@ -52,19 +52,25 @@ docker --version
 Para dockerizar a aplicação de chat e a API Spring REST, precisamos criar imagens Docker para cada aplicação. As imagens Docker conterão as dependências, configurações e código de aplicação necessários para executar as aplicações em contentores.
 
 #### Chat Application Dockerfile
-Dentro da pasta CA2, onde está localizado o código do aplicação chat, crio um Dockerfile com o seguinte conteúdo:
+Dentro da pasta CA5, onde está localizado o código do aplicação chat, crio um Dockerfile com o seguinte conteúdo:
 ```Dockerfile
-# Use an official OpenJDK runtime as the base image
-FROM openjdk:17-jdk-slim
+FROM amazoncorretto:17-alpine
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the jar file (assuming you have built the app into a jar using Gradle)
-COPY build/libs/basic_demo-0.1.0.jar /app/basic_demo-0.1.0.jar
+# Install Git and Gradle
+RUN apk add --no-cache git gradle
 
-# Set the command to run the chat server
-CMD ["java", "-cp", "/app/basic_demo-0.1.0.jar", "basic_demo.ChatServerApp", "59001"]
+# Clone the repository
+RUN git clone https://github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git /app
+
+WORKDIR /app/CA2-part1/gradle_basic_demo-main
+
+# Build the application
+RUN gradle build -x test --no-daemon
+
+# Run the chat server
+CMD ["java", "-cp", "build/libs/basic_demo-0.1.0.jar", "basic_demo.ChatServerApp", "59001"]
 ```
 Este ficheiro define as etapas para criar uma imagem Docker para a aplicação de chat:
 - **FROM**: Especifica a imagem base a ser usada, neste caso, a imagem oficial openjdk:17-jdk-slim.
@@ -74,22 +80,28 @@ Este ficheiro define as etapas para criar uma imagem Docker para a aplicação d
 
 
 #### Spring REST API Dockerfile
-Dentro da pasta CA2/CA2_part2, onde está localizado o código da API REST do Spring, crio um Dockerfile com o seguinte conteúdo:
+Dentro da pasta CA5, onde está localizado o código da API REST do Spring, crio um Dockerfile com o seguinte conteúdo:
 ```Dockerfile
-# Use official openjdk base image for Spring Boot
-FROM openjdk:17-jdk-slim
+FROM amazoncorretto:17-alpine
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the built JAR file from your project
-COPY build/libs/basic_demo.jar /app/basic_demo.jar
+# Install Git and Gradle
+RUN apk add --no-cache git gradle
 
-# Expose port 8080 for the Spring Boot app
+# Clone the repository
+RUN git clone https://github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git /app
+
+# Navigate to the SPRING application directory
+WORKDIR /app/CA2-part2/tut-gradle
+
+# Build the Spring Boot application
+RUN gradle build -x test --no-daemon
+
 EXPOSE 8080
 
-# Run the Spring Boot app
-ENTRYPOINT ["java", "-jar", "basic_demo.jar"]
+# Run the Spring Boot application
+ENTRYPOINT ["gradle", "bootRun", "--no-daemon"]
 ```
 Este ficheiro define as etapas para criar uma imagem Docker para a aplicação chat:
 - **FROM**: Especifica a imagem base a ser usada, neste caso, a imagem oficial openjdk:17-jdk-slim.
@@ -105,38 +117,37 @@ Este ficheiro define as etapas para criar uma imagem Docker para a aplicação c
 ##### Chat Application
 Para criar a imagem Docker da aplicação chat, crio outro ficheiro Dockerfile numa pasta à escolha com o seguinte conteúdo:
 ```Dockerfile
-# Stage 1: Build the application inside the container
-FROM openjdk:17-jdk-slim AS builder
-# Set the working directory in the container
+# Stage 1: Build the application
+FROM amazoncorretto:17-alpine AS builder
+
 WORKDIR /app
-# Install Git and Gradle (or any dependencies you need to build the app)
-RUN apt-get update && \
-    apt-get install -y git gradle
-# Add an ARG instruction to pass the GitHub token
-ARG GITHUB_TOKEN
-# Clone the repository into the container using the token
-RUN git clone https://${GITHUB_TOKEN}@github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git /app
-# Set the working directory inside the cloned repo
-WORKDIR /app/CA2
-# Grant execute permissions to the Gradle wrapper script
-RUN chmod +x gradlew
-# Build the application using Gradle
-RUN ./gradlew build --no-daemon
-# Verify that the jar file was created
-RUN ls -R /app/CA2/build/libs
-# Stage 2: Use an official OpenJDK runtime as the base image
-FROM openjdk:17-jdk-slim
-# Set the working directory in the container
+
+# Install Git and Gradle
+RUN apk add --no-cache git gradle
+
+# Clone the repository
+RUN git clone https://github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git /app
+
+# Navigate to the chat application directory
+WORKDIR /app/CA2-part1/gradle_basic_demo-main
+
+# Build the application
+RUN gradle build -x test --no-daemon
+
+# Stage 2: Runtime image
+FROM amazoncorretto:17-alpine
+
 WORKDIR /app
-# Copy the jar file (assuming it was built successfully)
-COPY --from=builder /app/CA2/build/libs/basic_demo-0.1.0.jar /app/basic_demo-0.1.0.jar
-# Set the command to run the chat server
+
+# Copy ONLY the JAR from the build stage
+COPY --from=builder /app/CA2-part1/gradle_basic_demo-main/build/libs/basic_demo-0.1.0.jar /app/basic_demo-0.1.0.jar
+
+# Run the chat server
 CMD ["java", "-cp", "basic_demo-0.1.0.jar", "basic_demo.ChatServerApp", "59001"]
 ```
-Este Dockerfile reutiliza o Dockerfile anterior para a aplicação chat, mas adiciona um processo de compilação em várias etapas para clonar o código da aplicação a partir de um repositório GitHub privado usando um token GitHub. O processo de compilação é dividido em duas etapas:
+Este Dockerfile reutiliza o Dockerfile anterior para a aplicação chat, mas adiciona um processo de compilação em várias etapas para clonar o código da aplicação a partir de um repositório GitHub. O processo de compilação é dividido em duas etapas:
 - **Etapa 1 (compilador)**: Clona o repositório, compila a aplicação usando Gradle e verifica a criação do ficheiro JAR.
-    - A instrução ARG é usada para passar o token do GitHub com segurança durante o processo de compilação.
-- O comando git clone procura o repositório usando o token para autenticação.
+- O comando git clone procura o repositório.
 - O comando de compilação Gradle compila o aplicativo e cria o ficheiro JAR.
 - O comando ls lista o conteúdo do diretório build/libs para verificar o ficheiro JAR.
 - **Etapa 2**: Utiliza o tempo de execução oficial do OpenJDK como imagem base e copia o ficheiro JAR compilado da fase de compilação para a imagem final. A instrução CMD especifica o comando para executar o servidor de chat.
@@ -144,38 +155,39 @@ Este Dockerfile reutiliza o Dockerfile anterior para a aplicação chat, mas adi
 ##### Spring REST API
 Para criar a imagem Docker da API REST do Spring, crie outro ficheiro Dockerfile numa pasta à sua escolha com o seguinte conteúdo:
 ```Dockerfile
-# Stage 1: Build the application inside the container
-FROM openjdk:17-jdk-slim AS builder
-# Set the working directory in the container
+# Stage 1: Build the application
+FROM amazoncorretto:17-alpine AS builder
+
 WORKDIR /app
-# Install Git and Gradle (or any dependencies you need to build the app)
-RUN apt-get update && \
-    apt-get install -y git gradle
-# Add an ARG instruction to pass the GitHub token
-ARG GITHUB_TOKEN
-# Clone the repository into the container using the token
-RUN git clone https://${GITHUB_TOKEN}@github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git /app
-# Set the working directory inside the cloned repo
-WORKDIR /app/CA2/CA2_Part2
-# Grant execute permissions to the Gradle wrapper script
-RUN chmod +x gradlew
-# Build the application using Gradle
-RUN ./gradlew build --no-daemon
-# Stage 2: Use an official OpenJDK runtime as the base image
-FROM openjdk:17-jdk-slim
-# Set the working directory in the container
+
+# Install Git and Gradle
+RUN apk add --no-cache git gradle
+
+# Clone the repository
+RUN git clone https://github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git /app
+
+# Navigate to the Spring application directory
+WORKDIR /app/CA2-part2/tut-gradle
+
+# Build the application
+RUN gradle build -x test --no-daemon
+
+# Stage 2: Runtime image
+FROM amazoncorretto:17-alpine
+
 WORKDIR /app
-# Copy the jar file (assuming it was built successfully)
-COPY --from=builder /app/CA2/CA2_Part2/build/libs/basic_demo.jar /app/basic_demo.jar
-# Expose port 8080 for the Spring Boot app
+
+# Copy ONLY the JAR from the build stage
+COPY --from=builder /app/CA2-part2/tut-gradle/build/libs/*.jar /app/spring-app.jar
+
 EXPOSE 8080
-# Run the Spring Boot app
-ENTRYPOINT ["java", "-jar", "basic_demo.jar"]
+
+# Run the Spring Boot application
+ENTRYPOINT ["java", "-jar", "spring-app.jar"]
 ```
-Este Dockerfile reutiliza o Dockerfile anterior para a API REST do Spring, mas adiciona um processo de compilação em várias etapas para clonar o código da aplicação a partir de um repositório GitHub privado usando um token GitHub. O processo de compilação é dividido em duas etapas:
+Este Dockerfile reutiliza o Dockerfile anterior para a API REST do Spring, mas adiciona um processo de compilação em várias etapas para clonar o código da aplicação a partir de um repositório GitHub. O processo de compilação é dividido em duas etapas:
 - **Etapa 1 (compilador)**: Clona o repositório, compila a aplicação usando Gradle e verifica a criação do ficheiro JAR.
-    - A instrução ARG é usada para passar o token do GitHub com segurança durante o processo de compilação.
-- O comando git clone busca o repositório usando o token para autenticação.
+- O comando git clone procura o repositório.
 - O comando de compilação Gradle compila a aplicação e cria o ficheiro JAR.
 - **Etapa 2**: Utiliza o tempo de execução oficial do OpenJDK como imagem base e copia o ficheiro JAR compilado da fase de compilação para a imagem final. A instrução EXPOSE expõe a porta 8080 para a aplicação Spring Boot, e a instrução ENTRYPOINT especifica o comando para executar a aplicação Spring Boot.
 
@@ -244,7 +256,7 @@ a partir de um Dockerfile (o ficheiro que contém instruções para criar a imag
 1. **Change of Base Image:**
 
    - Antes: openjdk:17-jdk-slim
-   - Agora: openjdk:17-alpine
+   - Agora: amazoncorretto:17-alpine
    - Motivo:
    A imagem Alpine é significativamente menor porque é uma distribuição Linux minimalista, o que reduz consideravelmente o tamanho final da imagem.
 
@@ -277,107 +289,113 @@ O Docker Compose simplifica o processo de gerenciamento de aplicações com vár
 
 Crio uma estrutura de diretórios para a configuração do Docker Compose:
 ```
-project-root/
+CA5/part2
 ├── docker-compose.yml
-├── app/               
+├── web/               
 │   └── Dockerfile # Dockerfile for the Spring REST API, use version 1 from the previous section because the repository is cloned inside the container
 ├── db/
 │   └── Dockerfile # Dockerfile for the H2 database server
 ```
 #### Database Dockerfile
-Dentro da pasta db, crie um Dockerfile para o servidor de base de dados H2 com o seguinte conteúdo:
+Dentro da pasta db, crio um Dockerfile para o servidor de base de dados H2 com o seguinte conteúdo:
 ```Dockerfile
-# Base image
-FROM openjdk:17-jdk-slim
-# Install wget and unzip
-RUN apt-get update && apt-get install -y wget unzip curl && rm -rf /var/lib/apt/lists/*
-# Define the H2 directory and the zip file to download
-ENV H2_DIR="/opt/h2"
-ENV H2_ZIP="h2-2019-10-14.zip"
-ENV H2_JAR="$H2_DIR/h2/bin/h2*.jar"
-# Define the H2 data directory
-ENV H2_DATA_DIR="/opt/h2_data"
-# Download and unzip the H2 database if not already present
-RUN if [ ! -d "$H2_DIR" ]; then \
-        echo "H2 directory not found. Downloading H2 database..."; \
-        wget http://www.h2database.com/$H2_ZIP -O /tmp/$H2_ZIP && \
-        mkdir -p $H2_DIR && \
-        unzip -o /tmp/$H2_ZIP -d $H2_DIR && \
-        echo "H2 database downloaded and extracted."; \
-    else \
-        echo "H2 directory already exists. Skipping download."; \
-    fi
-# Expose ports for H2 TCP and web interfaces
-EXPOSE 9092 8082
-# Start the H2 server with persistent storage
-CMD java -cp $H2_JAR org.h2.tools.Server -tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082 -baseDir $H2_DATA_DIR -ifNotExists
+FROM amazoncorretto:17-alpine
+
+WORKDIR /app
+
+# Download H2 database JAR
+RUN apk add --no-cache wget && \
+    wget https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar -O h2.jar && \
+    apk del wget
+
+# Create directory for database files
+RUN mkdir -p /app/data
+
+EXPOSE 8082 9092
+
+# Run H2 in server mode
+# -tcp: Enable TCP server
+# -tcpAllowOthers: Allow remote connections
+# -ifNotExists: Create database if it doesn't exist
+CMD ["java", "-cp", "h2.jar", "org.h2.tools.Server", \
+     "-tcp", "-tcpAllowOthers", "-tcpPort", "9092", \
+     "-web", "-webAllowOthers", "-webPort", "8082", \
+     "-ifNotExists"]
 ```
 Este Dockerfile define as etapas para criar uma imagem Docker para o servidor de base de dados H2:
 - **FROM**: Especifica a imagem base a ser usada, neste caso, a imagem oficial openjdk:17-jdk-slim.
 - **RUN**: instala os pacotes wget, unzip e curl para descarregar e extrair a base de dados H2.
-- **ENV**: define variáveis de ambiente para o diretório H2, ficheiro zip, ficheiro JAR, diretório de dados e portas.
 - **CMD**: Inicia o servidor H2 com interfaces TCP e web expostas nas portas 9092 e 8082, respetivamente. A opção -baseDir especifica o diretório de dados para armazenamento persistente.
 - **EXPOSE**: Expõe as portas 9092 e 8082 para o servidor H2 escutar.
 
 #### Docker Compose Configuration
 Crio um ficheiro docker-compose.yml no diretório raiz do projeto com o seguinte conteúdo:
 ```yaml
+version: '3.8'
+
 services:
   db:
     build:
       context: ./db
-    container_name: h2-db
+      dockerfile: Dockerfile
+    container_name: h2-database
     ports:
-      - "9092:9092"
-      - "8082:8082"
+      - "8082:8082"  # H2 web console
+      - "9092:9092"  # H2 TCP server
     volumes:
-      - h2_data:/opt/h2_data
+      - h2-data:/app/data
+    environment:
+      - H2_OPTIONS=-tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082"]
-      interval: 30s
-      retries: 3
-      start_period: 10s
-      timeout: 10s
+      test: ["CMD", "java", "-cp", "/app/h2.jar", "org.h2.tools.Shell", "-url", "jdbc:h2:tcp://localhost:9092/./data/jpadb", "-user", "sa", "-password", "", "-sql", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
   web:
     build:
-      context: ./app
-      args:
-        GITHUB_TOKEN: ${GITHUB_TOKEN}
-    container_name: web-app
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: spring-boot-app
     ports:
       - "8080:8080"
-    depends_on:
-      - db
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://db:9092//opt/h2_data/test
+      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://db:9092/./data/jpadb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      - SPRING_DATASOURCE_DRIVERCLASSNAME=org.h2.Driver
       - SPRING_DATASOURCE_USERNAME=sa
       - SPRING_DATASOURCE_PASSWORD=
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.H2Dialect
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-      - SPRING_JPA_SHOW_SQL=true
-      - SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.H2Dialect
-      - SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=true
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
-      interval: 30s
-      retries: 3
-      start_period: 10s
-      timeout: 10s
+      - SPRING_H2_CONSOLE_ENABLED=true
+      - SPRING_H2_CONSOLE_PATH=/h2-console
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+
 volumes:
-  h2_data:
-    name: h2_data
+  h2-data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
 ```
 Este ficheiro docker-compose.yml define dois serviços:
 - **db**: Cria a imagem do servidor de base de dados H2 utilizando o Dockerfile na pasta db. O serviço expõe as portas 9092 e 8082 para as interfaces TCP e web, respetivamente. Também monta um volume chamado h2_data para armazenamento persistente e define uma verificação de integridade para verificar a disponibilidade da interface web.
   - **build**: Especifica o contexto da compilação como a pasta db que contém o Dockerfile.
-  - **container_name**: Define o nome do contentor como h2-db.
+  - **container_name**: Define o nome do contentor como h2-database.
   - **ports**: Mapeia as portas 9092 e 8082 do contentor para a máquina host.
   - **volumes**: Monta o volume h2_data no diretório /opt/h2_data no contentor para armazenamento persistente.
   - **healthcheck**: Define uma verificação de integridade usando o comando curl para verificar a disponibilidade da interface web.
 
 - **web**: Cria a imagem da API REST Spring usando o Dockerfile na pasta app. O serviço expõe a porta 8080 e depende do serviço db. Define variáveis de ambiente para a configuração da fonte de dados Spring e propriedades Hibernate. Uma verificação de integridade é definida para verificar a disponibilidade da API REST.
   - **build**: Especifica o contexto da compilação como a pasta app que contém o Dockerfile.
-  - **args**: Passa o token GitHub como um argumento de compilação para clonar o repositório com segurança.
-  - **container_name**: Define o nome do contentor como web-app.
+  - **container_name**: Define o nome do contentor como spring-boot-app.
   - **ports**: Mapeia a porta 8080 do contentor para a máquina host.
   - **depends_on**: Especifica que o serviço web depende do serviço db.
   - **environment**: Define variáveis de ambiente para a configuração da fonte de dados Spring e propriedades Hibernate.
@@ -387,7 +405,7 @@ Este ficheiro docker-compose.yml define dois serviços:
 
 ### Testing Container Networking and Health Checks
 
-Para testar a ligação do contentor **web** ao contentor **db**, pode definir a variável de ambiente SPRING_DATASOURCE_URL como `jdbc:h2: tcp://db:9092//opt/h2_data/test`, onde **db** é o nome do host do contentor da base de dados H2, e ela será resolvida para o endereço IP do contentor e conectada ao servidor da base de dados H2.
+Para testar a ligação do contentor **web** ao contentor **db**, pode definir a variável de ambiente SPRING_DATASOURCE_URL como `jdbc:h2: tcp://db:9092//opt/h2-database/test`, onde **db** é o nome do host do contentor da base de dados H2, e ela será resolvida para o endereço IP do contentor e conectada ao servidor da base de dados H2.
 Para testar a conexão do contentor **db** ao contentor **web**, entre no contentor db e use o comando curl para acessar a API REST:
 ```bash
 docker exec -it h2-db /bin/bash
@@ -416,8 +434,8 @@ Os detalhes do volume serão exibidos, incluindo o ponto de montagem na máquina
         "CreatedAt": "2024-11-21T23:19:10.974910381Z",
         "Driver": "local",
         "Labels": {},
-        "Mountpoint": "/home/user/.local/share/docker/volumes/h2_data/_data",
-        "Name": "h2_data",
+        "Mountpoint": "/home/user/.local/share/docker/volumes/h2-database/_data",
+        "Name": "h2-database",
         "Options": {},
         "Scope": "local"
     }
@@ -427,8 +445,8 @@ Se inspecionar o diretório do ponto de montagem dentro do contentor, encontrar�
 ```bash
 //Enter the db container with root privileges
 docker exec -u root -it h2-db /bin/bash
-root@e0dfaa776ede:/# cd /opt/h2_data/
-root@e0dfaa776ede:/opt/h2_data# ls
+root@e0dfaa776ede:/# cd /opt/h2-database/
+root@e0dfaa776ede:/opt/h2-database# ls
 test.mv.db
 ```
 
