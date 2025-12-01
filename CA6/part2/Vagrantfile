@@ -1,0 +1,23 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-22.04"
+
+  # Production VM - runs Docker containers
+  config.vm.define "production" do |prod|
+    prod.vm.hostname = "production-vm"
+    prod.vm.network "private_network", ip: "192.168.56.20"
+    prod.vm.network "forwarded_port", guest: 8080, host: 8090
+
+    prod.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = 2
+      vb.name = "production-vm"
+    end
+
+    # Provision production VM
+    prod.vm.provision "ansible" do |ansible|
+      ansible.playbook = "deploy.yml"
+      ansible.inventory_path = "host.ini"
+      ansible.limit = "production"
+    end
+  end
+end

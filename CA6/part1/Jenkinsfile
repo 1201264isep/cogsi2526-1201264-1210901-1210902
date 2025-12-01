@@ -71,7 +71,7 @@ pipeline {
 
     post {
         success {
-            echo '✓ Pipeline executed successfully!'
+            echo 'Pipeline executed successfully!'
             script {
                 // Tag stable build
                 def buildTag = "stable-v${env.BUILD_NUMBER}"
@@ -79,10 +79,10 @@ pipeline {
             }
         }
         failure {
-            echo '✗ Pipeline execution failed!'
+            echo 'Pipeline execution failed!'
         }
         unstable {
-            echo '⚠ Pipeline execution was unstable!'
+            echo 'Pipeline execution was unstable!'
         }
         always {
             echo "════════════════════════════════════════"
@@ -98,17 +98,17 @@ pipeline {
                         sh '''
                             for i in {1..5}; do
                                 if curl -f http://192.168.56.12:8080/employees; then
-                                    echo "✓ Health check passed!"
+                                    echo "Health check passed!"
                                     exit 0
                                 fi
                                 echo "Attempt $i failed, retrying..."
                                 sleep 5
                             done
-                            echo "✗ Health check failed after 5 attempts!"
+                            echo "Health check failed after 5 attempts!"
                             exit 1
                         '''
                     } catch (Exception e) {
-                        echo '✗ Health check failed!'
+                        echo 'Health check failed!'
                         currentBuild.result = 'UNSTABLE'
                     }
                 }

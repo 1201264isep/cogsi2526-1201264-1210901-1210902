@@ -1,0 +1,131 @@
+---
+- name: Setup Production VM with Docker
+  hosts: production
+  become: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add vagrant user to docker group
+      user:
+        name: vagrant
+        groups: docker
+        append: yes
+
+    - name: Reset SSH connection to apply group changes
+      meta: reset_connection
+
+- name: Deploy Docker container to Production VM
+  hosts: production
+  become: yes
+
+  vars:
+    docker_username: "{{ lookup('env', 'DOCKER_USERNAME') | default('', true) }}"
+    docker_password: "{{ lookup('env', 'DOCKER_PASSWORD') | default('', true) }}"
+    docker_image: "{{ lookup('env', 'DOCKER_IMAGE') | default('', true) }}"
+    container_name: "spring-app"
+
+  tasks:
+    - name: Login to Docker Hub
+      docker_login:
+        username: "{{ docker_username }}"
+        password: "{{ docker_password }}"
+      when: docker_username != "" and docker_password != "" and docker_image != ""
+
+    - name: Pull Docker image from Docker Hub
+      docker_image:
+        name: "{{ docker_image }}"
+        source: pull
+      when: docker_image != ""
+
+    - name: Stop and remove existing container
+      docker_container:
+        name: "{{ container_name }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Run new Docker container
+      docker_container:
+        name: "{{ container_name }}"
+        image: "{{ docker_image }}"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "8080:8080"
+        volumes:
+          - "/home/vagrant/h2-data:/app/h2-data"
+      when: docker_image != ""
+      register: container_result
+
+    - name: Wait for application to start
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 60
+      when: docker_image != ""
+
+    - name: Health check
+      uri:
+        url: "http://192.168.56.20:8080/employees"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 10
+      delay: 5
+      when: docker_image != ""
+
+    - name: Show deployment success
+      debug:
+        msg: |
+          ============================================
+          Docker container deployed successfully!
+          ============================================
+          Web UI: http://192.168.56.20:8080
+          H2 Console: http://192.168.56.20:8080/h2-console
+          
+          From host machine:
+            Web UI: http://localhost:8090
+            H2 Console: http://localhost:8090/h2-console
+          
+          Container: {{ container_name }}
+          Image: {{ docker_image }}
+          ============================================
+      when: docker_image != ""

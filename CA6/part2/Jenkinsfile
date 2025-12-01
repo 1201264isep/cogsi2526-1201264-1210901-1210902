@@ -1,0 +1,170 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = "1210902/spring-rest-service"
+        DOCKER_TAG = "${env.BRANCH_NAME == 'main' ? 'latest' : env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+        DOCKER_FULL_IMAGE = "${DOCKER_IMAGE}:${DOCKER_TAG}"
+        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code...'
+                checkout scm
+            }
+        }
+
+        stage('Assemble') {
+            steps {
+                echo 'Assembling the application...'
+                dir('CA2-part2/tut-gradle') {
+                    sh 'gradle clean assemble'
+                }
+            }
+        }
+
+        stage('Test') {
+            parallel {
+                stage('Unit Tests') {
+                    agent any
+                    steps {
+                        echo 'Running unit tests...'
+                        dir('CA2-part2/tut-gradle') {
+                            sh 'gradle test'
+                        }
+                    }
+                    post {
+                        always {
+                            junit 'CA2-part2/tut-gradle/build/test-results/test/*.xml'
+                        }
+                    }
+                }
+
+                stage('Integration Tests') {
+                    agent any
+                    steps {
+                        echo 'Running integration tests...'
+                        dir('CA2-part2/tut-gradle') {
+                            sh 'gradle integrationTest || echo "No integration tests defined"'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker image: ${DOCKER_FULL_IMAGE}"
+                dir('CA2-part2/tut-gradle') {
+                    script {
+                        docker.build("${DOCKER_FULL_IMAGE}")
+                    }
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                echo 'Archiving Dockerfile and metadata...'
+                dir('CA2-part2/tut-gradle') {
+                    archiveArtifacts artifacts: 'Dockerfile',
+                                    fingerprint: true,
+                                    onlyIfSuccessful: true
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                echo "Pushing Docker image to Docker Hub: ${DOCKER_FULL_IMAGE}"
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', "${DOCKER_CREDENTIALS_ID}") {
+                        docker.image("${DOCKER_FULL_IMAGE}").push()
+
+                        // Also push as 'latest' if on main branch
+                        if (env.BRANCH_NAME == 'main') {
+                            docker.image("${DOCKER_FULL_IMAGE}").push('latest')
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Deploying to Production VM...'
+                script {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                            usernameVariable: 'DOCKER_USERNAME',
+                            passwordVariable: 'DOCKER_PASSWORD'
+                        )
+                    ]) {
+                        sh """
+                            export DOCKER_USERNAME=${DOCKER_USERNAME}
+                            export DOCKER_PASSWORD=${DOCKER_PASSWORD}
+                            export DOCKER_IMAGE=${DOCKER_FULL_IMAGE}
+                            ansible-playbook -i CA6/part2/host.ini CA6/part2/deploy.yml
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline executed successfully!'
+            script {
+                if (env.BRANCH_NAME == 'main') {
+                    echo "Docker image pushed: ${DOCKER_FULL_IMAGE}"
+                    echo "Deployed to production successfully!"
+                }
+            }
+        }
+        failure {
+            echo 'Pipeline execution failed!'
+        }
+        unstable {
+            echo 'Pipeline execution was unstable!'
+        }
+        always {
+            echo "════════════════════════════════════════"
+            echo "Pipeline Status: ${currentBuild.result ?: 'SUCCESS'}"
+            echo "Build Number: ${env.BUILD_NUMBER}"
+            echo "Branch: ${env.BRANCH_NAME}"
+            echo "Docker Image: ${DOCKER_FULL_IMAGE}"
+            echo "════════════════════════════════════════"
+
+            // Deployment verification only if deployed
+            script {
+                if (env.BRANCH_NAME == 'main' && (currentBuild.result == null || currentBuild.result == 'SUCCESS')) {
+                    echo 'Running health check on Production VM...'
+                    try {
+                        sh '''
+                            for i in {1..10}; do
+                                if curl -f http://192.168.56.20:8080/employees; then
+                                    echo "✓ Health check passed!"
+                                    exit 0
+                                fi
+                                echo "Attempt $i failed, retrying..."
+                                sleep 5
+                            done
+                            echo "✗ Health check failed after 10 attempts!"
+                            exit 1
+                        '''
+                    } catch (Exception e) {
+                        echo 'Health check failed!'
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+        }
+    }
+}
