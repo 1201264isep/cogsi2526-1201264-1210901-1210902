@@ -1,0 +1,72 @@
+---
+- name: Rollback to stable version on Green VM
+  hosts: green
+  become: yes
+
+  vars:
+    jenkins_url: "{{ lookup('env', 'JENKINS_URL') | default('http://localhost:8080', true) }}"
+    jenkins_user: "{{ lookup('env', 'JENKINS_USER') }}"
+    jenkins_token: "{{ lookup('env', 'JENKINS_TOKEN') }}"
+    job_name: "{{ lookup('env', 'JOB_NAME') }}"
+    stable_build: "{{ lookup('env', 'STABLE_BUILD') | default('lastStableBuild', true) }}"
+
+  tasks:
+    - name: Download stable artifact from Jenkins
+      get_url:
+        url: "{{ jenkins_url }}/job/{{ job_name }}/{{ stable_build }}/artifact/CA2/build/libs/rest-service-0.0.1-SNAPSHOT.jar"
+        dest: /tmp/stable-app.jar
+        username: "{{ jenkins_user }}"
+        password: "{{ jenkins_token }}"
+        force: yes
+        validate_certs: no
+
+    - name: Stop running application
+      shell: |
+        if [ -f /home/vagrant/app.pid ]; then
+          kill $(cat /home/vagrant/app.pid) || true
+          rm /home/vagrant/app.pid
+        fi
+      ignore_errors: yes
+
+    - name: Backup current application
+      copy:
+        src: /home/vagrant/app/app.jar
+        dest: /home/vagrant/app/app.jar.backup
+        remote_src: yes
+      ignore_errors: yes
+
+    - name: Replace with stable version
+      copy:
+        src: /tmp/stable-app.jar
+        dest: /home/vagrant/app/app.jar
+        remote_src: yes
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Start application
+      shell: |
+        cd /home/vagrant/app
+        nohup java -jar app.jar --spring.config.location=application.properties > app.log 2>&1 &
+        echo $! > /home/vagrant/app.pid
+      become_user: vagrant
+
+    - name: Wait for application to start
+      wait_for:
+        port: 8080
+        delay: 5
+        timeout: 60
+
+    - name: Health check
+      uri:
+        url: "http://192.168.56.12:8080/employees"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 5
+      delay: 5
+
+    - name: Print rollback status
+      debug:
+        msg: "Rollback completed successfully. Application is running."
+      when: health_check.status == 200

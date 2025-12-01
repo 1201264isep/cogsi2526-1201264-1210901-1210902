@@ -1,0 +1,195 @@
+---
+- name: Provision and deploy to Blue VM
+  hosts: blue
+  become: yes
+
+  vars:
+    repo_url: "https://github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git"
+    app_path: "CA2-part2/tut-gradle"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - git
+          - openjdk-17-jdk
+          - curl
+          - wget
+          - unzip
+        state: present
+
+    - name: Download Gradle
+      get_url:
+        url: https://services.gradle.org/distributions/gradle-8.5-bin.zip
+        dest: /tmp/gradle-8.5-bin.zip
+
+    - name: Create Gradle directory
+      file:
+        path: /opt/gradle
+        state: directory
+        mode: '0755'
+
+    - name: Unzip Gradle
+      unarchive:
+        src: /tmp/gradle-8.5-bin.zip
+        dest: /opt/gradle
+        remote_src: yes
+        creates: /opt/gradle/gradle-8.5
+
+    - name: Create symbolic link for Gradle
+      file:
+        src: /opt/gradle/gradle-8.5/bin/gradle
+        dest: /usr/bin/gradle
+        state: link
+
+    - name: Create application directory
+      file:
+        path: /home/vagrant/app
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Create H2 data directory
+      file:
+        path: /home/vagrant/h2-data
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Remove existing project directory if exists
+      file:
+        path: /home/vagrant/project
+        state: absent
+
+    - name: Clone repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: /home/vagrant/project
+        version: main
+        force: yes
+      become_user: vagrant
+      register: git_clone_result
+
+    - name: Verify repository structure
+      stat:
+        path: "/home/vagrant/project/{{ app_path }}"
+      register: app_dir
+
+    - name: Fail if application directory doesn't exist
+      fail:
+        msg: "Application directory /home/vagrant/project/{{ app_path }} does not exist"
+      when: not app_dir.stat.exists
+
+    - name: Create application.properties for persistent H2
+      copy:
+        dest: "/home/vagrant/project/{{ app_path }}/src/main/resources/application.properties"
+        content: |
+          spring.datasource.url=jdbc:h2:file:/home/vagrant/h2-data/jpadb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+          spring.datasource.driverClassName=org.h2.Driver
+          spring.datasource.username=sa
+          spring.datasource.password=
+          spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+          spring.jpa.hibernate.ddl-auto=update
+          spring.h2.console.enabled=true
+          spring.h2.console.path=/h2-console
+          spring.h2.console.settings.web-allow-others=true
+          server.port=8080
+        owner: vagrant
+        group: vagrant
+
+    - name: Build Gradle application with system Gradle
+      shell: |
+        cd /home/vagrant/project/{{ app_path }}
+        gradle build -x test --no-daemon
+      args:
+        executable: /bin/bash
+      become_user: vagrant
+      environment:
+        GRADLE_USER_HOME: /home/vagrant/.gradle
+      register: gradle_build
+
+    - name: Show build output (last 20 lines)
+      debug:
+        msg: "{{ gradle_build.stdout_lines[-20:] }}"
+
+    - name: Find the built JAR file
+      find:
+        paths: "/home/vagrant/project/{{ app_path }}/build/libs"
+        patterns: "*.jar"
+        excludes: "*-plain.jar"
+      register: jar_files
+
+    - name: Verify JAR was built
+      fail:
+        msg: "No JAR file found in /home/vagrant/project/{{ app_path }}/build/libs"
+      when: jar_files.matched == 0
+
+    - name: Show found JAR file
+      debug:
+        msg: "Found JAR: {{ jar_files.files[0].path }}"
+
+    - name: Copy JAR to app directory
+      copy:
+        src: "{{ jar_files.files[0].path }}"
+        dest: /home/vagrant/app/app.jar
+        remote_src: yes
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Stop any existing application
+      shell: |
+        if [ -f /home/vagrant/app.pid ]; then
+          PID=$(cat /home/vagrant/app.pid)
+          kill -15 $PID 2>/dev/null || true
+          sleep 3
+          kill -9 $PID 2>/dev/null || true
+          rm /home/vagrant/app.pid
+        fi
+      ignore_errors: yes
+
+    - name: Start application
+      shell: |
+        cd /home/vagrant/app
+        nohup java -jar app.jar > app.log 2>&1 &
+        echo $! > /home/vagrant/app.pid
+      become_user: vagrant
+
+    - name: Wait for application to start
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 60
+
+    - name: Health check
+      uri:
+        url: "http://192.168.56.11:8080/employees"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 5
+      delay: 5
+
+    - name: Show deployment success
+      debug:
+        msg: |
+          ============================================
+          Application deployed successfully!
+          ============================================
+          Web UI: http://192.168.56.11:8080
+          H2 Console: http://192.168.56.11:8080/h2-console
+            JDBC URL: jdbc:h2:file:/home/vagrant/h2-data/jpadb
+            Username: sa
+            Password: (leave empty)
+          
+          From host machine:
+            Web UI: http://localhost:8081
+            H2 Console: http://localhost:8081/h2-console
+          ============================================

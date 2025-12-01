@@ -1,0 +1,118 @@
+pipeline {
+    agent any
+
+    environment {
+        ARTIFACT_PATH = "${WORKSPACE}/CA2-part2/tut-gradle/build/libs/rest-service-0.0.1-SNAPSHOT.jar"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code from development branch...'
+                git branch: 'main',
+                    url: 'https://github.com/pedroteixeira80/cogsi2526-1201264-1210901-1210902.git',
+                    credentialsId: ''
+            }
+        }
+
+        stage('Assemble') {
+            steps {
+                echo 'Assembling the application...'
+                dir('CA2-part2/tut-gradle') {
+                    sh 'gradle clean assemble'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo 'Running unit tests...'
+                dir('CA2-part2/tut-gradle') {
+                    sh 'gradle test'
+                }
+            }
+            post {
+                always {
+                    junit 'CA2-part2/tut-gradle/build/test-results/test/*.xml'
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                echo 'Archiving artifacts...'
+                archiveArtifacts artifacts: 'CA2-part2/tut-gradle/build/libs/*.jar',
+                                fingerprint: true,
+                                onlyIfSuccessful: true
+            }
+        }
+
+        stage('Deploy to Production?') {
+            steps {
+                script {
+                    input message: 'Deploy to Green VM (Production)?',
+                          ok: 'Deploy',
+                          submitter: 'admin'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo 'Deploying to Green VM...'
+                sh """
+                    export ARTIFACT_PATH=${ARTIFACT_PATH}
+                    ansible-playbook -i CA6/part1/host.ini CA6/part1/green.yml \
+                        --extra-vars "artifact_path=${ARTIFACT_PATH}"
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✓ Pipeline executed successfully!'
+            script {
+                // Tag stable build
+                def buildTag = "stable-v${env.BUILD_NUMBER}"
+                echo "Tagging build as ${buildTag}"
+            }
+        }
+        failure {
+            echo '✗ Pipeline execution failed!'
+        }
+        unstable {
+            echo '⚠ Pipeline execution was unstable!'
+        }
+        always {
+            echo "════════════════════════════════════════"
+            echo "Pipeline Status: ${currentBuild.result ?: 'SUCCESS'}"
+            echo "Build Number: ${env.BUILD_NUMBER}"
+            echo "════════════════════════════════════════"
+
+            // Deployment verification (health check)
+            script {
+                if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
+                    echo 'Running health check on Green VM...'
+                    try {
+                        sh '''
+                            for i in {1..5}; do
+                                if curl -f http://192.168.56.12:8080/employees; then
+                                    echo "✓ Health check passed!"
+                                    exit 0
+                                fi
+                                echo "Attempt $i failed, retrying..."
+                                sleep 5
+                            done
+                            echo "✗ Health check failed after 5 attempts!"
+                            exit 1
+                        '''
+                    } catch (Exception e) {
+                        echo '✗ Health check failed!'
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+        }
+    }
+}

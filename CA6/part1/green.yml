@@ -1,0 +1,109 @@
+---
+- name: Provision Green VM
+  hosts: green
+  become: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - openjdk-17-jdk
+          - curl
+        state: present
+
+    - name: Create application directory
+      file:
+        path: /home/vagrant/app
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Create H2 data directory
+      file:
+        path: /home/vagrant/h2-data
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Stop any running application
+      shell: |
+        if [ -f /home/vagrant/app.pid ]; then
+          kill $(cat /home/vagrant/app.pid) || true
+          rm /home/vagrant/app.pid
+        fi
+      ignore_errors: yes
+
+    - name: Create application properties
+      copy:
+        dest: /home/vagrant/app/application.properties
+        content: |
+          spring.datasource.url=jdbc:h2:file:/home/vagrant/h2-data/jpadb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+          spring.datasource.driverClassName=org.h2.Driver
+          spring.datasource.username=sa
+          spring.datasource.password=
+          spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+          spring.jpa.hibernate.ddl-auto=update
+          spring.h2.console.enabled=true
+          spring.h2.console.path=/h2-console
+          spring.h2.console.settings.web-allow-others=true
+          server.port=8080
+        owner: vagrant
+        group: vagrant
+
+- name: Deploy application to Green VM
+  hosts: green
+  become: yes
+
+  vars:
+    artifact_path: "{{ lookup('env', 'ARTIFACT_PATH') | default('', true) }}"
+
+  tasks:
+    - name: Copy artifact to VM
+      copy:
+        src: "{{ artifact_path }}"
+        dest: /home/vagrant/app/app.jar
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+      when: artifact_path != ""
+
+    - name: Stop running application
+      shell: |
+        if [ -f /home/vagrant/app.pid ]; then
+          kill $(cat /home/vagrant/app.pid) || true
+          rm /home/vagrant/app.pid
+        fi
+      ignore_errors: yes
+      when: artifact_path != ""
+
+    - name: Start application
+      shell: |
+        cd /home/vagrant/app
+        nohup java -jar app.jar --spring.config.location=application.properties > app.log 2>&1 &
+        echo $! > /home/vagrant/app.pid
+      become_user: vagrant
+      when: artifact_path != ""
+
+    - name: Wait for application to start
+      wait_for:
+        port: 8080
+        delay: 5
+        timeout: 60
+      when: artifact_path != ""
+
+    - name: Health check
+      uri:
+        url: "http://192.168.56.12:8080/employees"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 5
+      delay: 5
+      when: artifact_path != ""

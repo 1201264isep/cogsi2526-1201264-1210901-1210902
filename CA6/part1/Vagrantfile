@@ -1,0 +1,47 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-22.04"
+
+  # Blue VM - hosts the current/initial version
+  config.vm.define "blue" do |blue|
+    blue.vm.hostname = "blue-vm"
+    blue.vm.network "private_network", ip: "192.168.56.11"
+    blue.vm.network "forwarded_port", guest: 8080, host: 8081
+    
+    blue.vm.synced_folder "./h2-data-blue", "/home/vagrant/h2-data", create: true
+    
+    blue.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = 2
+      vb.name = "blue-vm"
+    end
+    
+    # Provision blue VM
+    blue.vm.provision "ansible" do |ansible|
+      ansible.playbook = "blue.yml"
+      ansible.inventory_path = "host.ini"
+      ansible.limit = "blue"
+    end
+  end
+
+  # Green VM - deployment target for Jenkins pipeline
+  config.vm.define "green" do |green|
+    green.vm.hostname = "green-vm"
+    green.vm.network "private_network", ip: "192.168.56.12"
+    green.vm.network "forwarded_port", guest: 8080, host: 8082
+    
+    green.vm.synced_folder "./h2-data-green", "/home/vagrant/h2-data", create: true
+    
+    green.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = 2
+      vb.name = "green-vm"
+    end
+    
+    # Provision green VM (just basic setup, no app deployment yet)
+    green.vm.provision "ansible" do |ansible|
+      ansible.playbook = "green.yml"
+      ansible.inventory_path = "host.ini"
+      ansible.limit = "green"
+    end
+  end
+end
