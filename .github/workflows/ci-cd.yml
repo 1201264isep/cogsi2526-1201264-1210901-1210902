@@ -29,27 +29,28 @@ jobs:
           distribution: 'temurin'
 
       - name: Make gradlew executable
-        run: chmod +x gradlew
-        working-directory: ${{ env.APP_PATH }}
+        run: chmod +x ./gradlew
+        working-directory: ${{ github.workspace }}/CA2-part2/tut-gradle
 
       - name: Assemble
         run: |
           echo "Assembling the application..."
           ./gradlew clean assemble
-        working-directory: ${{ env.APP_PATH }}
+        working-directory: ${{ github.workspace }}/CA2-part2/tut-gradle
 
       - name: Test
         run: |
           echo "Running unit tests..."
           ./gradlew test
-        working-directory: ${{ env.APP_PATH }}
+        working-directory: ${{ github.workspace }}/CA2-part2/tut-gradle
+
 
       - name: Publish Test Results
         uses: dorny/test-reporter@v1
         if: always()
         with:
           name: Test Results
-          path: '${{ env.APP_PATH }}/build/test-results/test/*.xml'
+          path: '${{ github.workspace }}/CA2-part2/tut-gradle/build/test-results/test/*.xml'
           reporter: java-junit
 
       - name: Tag stable build
@@ -66,12 +67,12 @@ jobs:
         if: success()
         with:
           name: application-jar
-          path: ${{ env.APP_PATH }}/build/libs/*.jar
+          path: ${{ github.workspace }}/CA2-part2/tut-gradle/build/libs/*.jar
 
       - name: Save artifact path for deployment
         if: success()
         run: |
-          echo "ARTIFACT_PATH=${{ github.workspace }}/${{ env.APP_PATH }}/build/libs/${{ env.ARTIFACT_NAME }}" >> $GITHUB_ENV
+          echo "ARTIFACT_PATH=${{ github.workspace }}/CA2-part2/tut-gradle/build/libs/${{ env.ARTIFACT_NAME }}" >> $GITHUB_ENV
 
   deploy-approval:
     needs: build-and-test
