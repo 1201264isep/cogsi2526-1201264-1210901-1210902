@@ -1,0 +1,6 @@
+test-job:
+  script:
+    - echo "Runner works!"
+    - hostname
+  tags:
+    - local
