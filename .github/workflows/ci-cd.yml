@@ -1,0 +1,134 @@
+name: CI/CD Pipeline
+
+permissions:
+  contents: write   # Needed for tagging
+
+on:
+  push:
+    branches: [ main, development ]
+  workflow_dispatch:
+
+env:
+  ARTIFACT_NAME: rest-service-0.0.1-SNAPSHOT.jar
+  APP_PATH: CA2-part2/tut-gradle
+
+jobs:
+  build-and-test:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Required for git tagging
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+        working-directory: ${{ env.APP_PATH }}
+
+      - name: Assemble
+        run: |
+          echo "Assembling the application..."
+          ./gradlew clean assemble
+        working-directory: ${{ env.APP_PATH }}
+
+      - name: Test
+        run: |
+          echo "Running unit tests..."
+          ./gradlew test
+        working-directory: ${{ env.APP_PATH }}
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: '${{ env.APP_PATH }}/build/test-results/test/*.xml'
+          reporter: java-junit
+
+      - name: Tag stable build
+        if: success()
+        run: |
+          echo "Tagging stable build..."
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag stable-v${{ github.run_number }}
+          git push origin stable-v${{ github.run_number }}
+
+      - name: Archive Artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: application-jar
+          path: ${{ env.APP_PATH }}/build/libs/*.jar
+
+      - name: Save artifact path for deployment
+        if: success()
+        run: |
+          echo "ARTIFACT_PATH=${{ github.workspace }}/${{ env.APP_PATH }}/build/libs/${{ env.ARTIFACT_NAME }}" >> $GITHUB_ENV
+
+  deploy-approval:
+    needs: build-and-test
+    runs-on: self-hosted
+    if: success()
+    environment:
+      name: production
+      url: http://192.168.56.12:8080
+
+    steps:
+      - name: Manual Approval
+        run: |
+          echo "Manual approval granted. Proceeding to deploy..."
+
+  deploy:
+    needs: deploy-approval
+    runs-on: self-hosted
+    if: success()
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: application-jar
+          path: ./artifacts
+
+      - name: Set up Python for Ansible
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Ansible
+        run: |
+          pip install ansible
+
+      - name: Deploy to Green VM
+        env:
+          ARTIFACT_PATH: ${{ github.workspace }}/artifacts/${{ env.ARTIFACT_NAME }}
+        run: |
+          echo "Deploying to Green VM..."
+          ansible-playbook -i CA6/part1/host.ini CA6/part1/green.yml \
+            --extra-vars "artifact_path=${ARTIFACT_PATH}"
+
+      - name: Health Check
+        if: success()
+        run: |
+          echo "Running health check on Green VM..."
+          for i in {1..5}; do
+            if curl -f http://192.168.56.12:8080/employees; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          echo "Health check failed!"
+          exit 1
