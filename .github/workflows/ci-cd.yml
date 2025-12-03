@@ -127,7 +127,13 @@ jobs:
       - name: Start Vagrant
         run: |
           cd ${{ github.workspace }}/CA6/part1
-          vagrant up
+
+          export VAGRANT_WSL_ENABLE_WINDOWS_ACCESS="1"
+          export VAGRANT_WSL_WINDOWS_ACCESS_USER_HOME_PATH="/mnt/c/Users/franc"
+
+          vagrant.exe destroy -f || true
+          vagrant.exe up
+
           until ssh -o StrictHostKeyChecking=no vagrant@192.168.56.12 'echo ready' 2>/dev/null; do
             echo "Waiting for VM..."
             sleep 5
