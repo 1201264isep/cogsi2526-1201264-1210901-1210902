@@ -44,13 +44,26 @@ jobs:
           ./gradlew test
         working-directory: ${{ github.workspace }}/CA2-part2/tut-gradle
 
-
       - name: Publish Test Results
+        if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: |
+          REPORT_PATH="${{ github.workspace }}/CA2-part2/tut-gradle/build/test-results/test/*.xml"
+          shopt -s nullglob
+          files=($REPORT_PATH)
+          if [ ${#files[@]} -gt 0 ]; then
+            echo "Publishing test reports..."
+            echo "path=$REPORT_PATH" >> $GITHUB_OUTPUT
+          else
+            echo "No test reports found, skipping."
+          fi
+        shell: bash
+
+      - name: Run Test Reporter
         uses: dorny/test-reporter@v1
-        if: always()
+        if: steps.publish-reports.outputs.path != ''
         with:
           name: Test Results
-          path: '${{ github.workspace }}/CA2-part2/tut-gradle/build/test-results/test/*.xml'
+          path: ${{ steps.publish-reports.outputs.path }}
           reporter: java-junit
 
       - name: Tag stable build
