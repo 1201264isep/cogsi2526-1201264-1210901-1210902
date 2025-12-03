@@ -1,7 +1,7 @@
 name: CI/CD Pipeline
 
 permissions:
-  contents: write   # Needed for tagging
+  contents: write
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # Required for git tagging
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -123,6 +123,16 @@ jobs:
       - name: Install Ansible
         run: |
           pip install ansible
+
+      - name: Start Vagrant
+        run: |
+          cd ${{ github.workspace }}/CA6/part1
+          vagrant up
+          until ssh -o StrictHostKeyChecking=no vagrant@192.168.56.12 'echo ready' 2>/dev/null; do
+            echo "Waiting for VM..."
+            sleep 5
+          done
+      
 
       - name: Deploy to Green VM
         env:
