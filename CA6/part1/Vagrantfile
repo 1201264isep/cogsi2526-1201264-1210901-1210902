@@ -21,6 +21,7 @@ Vagrant.configure("2") do |config|
       vb.cpus = 2
       vb.name = "blue-vm"
       vb.gui = true
+      vb.customize ["modifyvm", :id, "--vram", "32"]
     end
     
     # Provision blue VM
@@ -45,6 +46,7 @@ Vagrant.configure("2") do |config|
       vb.cpus = 2
       vb.name = "green-vm"
       vb.gui = true
+        vb.customize ["modifyvm", :id, "--vram", "32"]
 
     end
     
