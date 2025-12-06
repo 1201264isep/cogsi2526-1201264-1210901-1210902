@@ -124,20 +124,14 @@ jobs:
         run: |
           pip install ansible
 
-      - name: Start Vagrant
+      - name: Check VM is Ready
         run: |
-          cd ${{ github.workspace }}/CA6/part1
-
-          export VAGRANT_WSL_ENABLE_WINDOWS_ACCESS="1"
-          export VAGRANT_WSL_WINDOWS_ACCESS_USER_HOME_PATH="/mnt/c/Users/franc"
-
-          vagrant.exe destroy -f || true
-          vagrant.exe up
-
+          echo "Checking if green VM is accessible..."
           until ssh -o StrictHostKeyChecking=no vagrant@192.168.56.12 'echo ready' 2>/dev/null; do
             echo "Waiting for VM..."
             sleep 5
           done
+          echo "VM is ready!"
       
 
       - name: Deploy to Green VM
